@@ -8,6 +8,7 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import LeadsScreen from '../screens/LeadsScreen';
 import ProtocolScreen from '../screens/ProtocolScreen';
+import SymptomReportsScreen from '../screens/SymptomReportsScreen';
 import { useAuth } from '../contexts/AuthContext';
 
 const Stack = createNativeStackNavigator();
@@ -90,6 +91,15 @@ const AppNavigator = () => {
             <Stack.Screen 
               name="Protocol" 
               component={ProtocolScreen} 
+              options={{ 
+                headerShown: false,
+                animation: 'slide_from_right',
+              }} 
+            />
+
+            <Stack.Screen 
+              name="SymptomReports" 
+              component={SymptomReportsScreen} 
               options={{ 
                 headerShown: false,
                 animation: 'slide_from_right',

@@ -33,7 +33,7 @@ const HomeScreen = () => {
   
   // Animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -160,8 +160,36 @@ const HomeScreen = () => {
     }
   };
 
+  const getProtocolImage = (protocolData) => {
+    // Use the protocol's cover image if available
+    if (protocolData.coverImage) {
+      return protocolData.coverImage;
+    }
+    
+    // Fallback to dynamic image selection based on protocol name
+    const name = protocolData.name?.toLowerCase() || '';
+    
+    if (name.includes('crosslinking') || name.includes('cxl')) {
+      return 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=200&fit=crop&crop=center';
+    } else if (name.includes('laser') || name.includes('treatment')) {
+      return 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=400&h=200&fit=crop&crop=center';
+    } else if (name.includes('therapy') || name.includes('rehabilitation')) {
+      return 'https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=400&h=200&fit=crop&crop=center';
+    } else if (name.includes('medication') || name.includes('drug')) {
+      return 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&h=200&fit=crop&crop=center';
+    } else if (name.includes('weight') || name.includes('metabolic')) {
+      return 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=200&fit=crop&crop=center';
+    } else if (name.includes('anti-aging') || name.includes('facial')) {
+      return 'https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?w=400&h=200&fit=crop&crop=center';
+    } else {
+      // Default medical image
+      return 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=400&h=200&fit=crop&crop=center';
+    }
+  };
+
   const renderProtocolCard = (protocol, index) => {
     const { protocol: protocolData } = protocol;
+    const protocolImage = getProtocolImage(protocolData);
     
     return (
       <Animated.View
@@ -174,57 +202,81 @@ const HomeScreen = () => {
           }
         ]}
       >
-        <View style={styles.protocolHeader}>
-          <View style={styles.protocolInfo}>
-            <Text style={styles.protocolTitle}>{protocolData.name}</Text>
-            <Text style={styles.protocolDescription} numberOfLines={2}>
-              {protocolData.description}
-            </Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(protocol.status) }]}>
-            <Text style={styles.statusText}>{getStatusText(protocol.status)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.protocolDetails}>
-          <View style={styles.detailRow}>
-            <Icon name="calendar" size={16} color="#6B7280" />
-            <Text style={styles.detailText}>
-              {formatDate(protocol.startDate)} - {formatDate(protocol.endDate)}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Icon name="clock" size={16} color="#6B7280" />
-            <Text style={styles.detailText}>
-              {protocolData.duration} days • Current day: {protocol.currentDay}
-            </Text>
-          </View>
-
-          {protocolData.doctor && (
-            <View style={styles.detailRow}>
-              <Icon name="doctor" size={16} color="#6B7280" />
-              <Text style={styles.detailText}>
-                {protocolData.doctor.name}
+        {/* Protocol Image */}
+        <Image 
+          source={{ uri: protocolImage }}
+          style={styles.protocolImage}
+          resizeMode="cover"
+        />
+        
+        <View style={styles.protocolContent}>
+          <View style={styles.protocolHeader}>
+            <View style={styles.protocolInfo}>
+              <Text style={styles.protocolTitle}>{protocolData.name}</Text>
+              <Text style={styles.protocolDescription} numberOfLines={2}>
+                {protocolData.description}
               </Text>
             </View>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(protocol.status) }]}>
+              <Text style={styles.statusText}>{getStatusText(protocol.status)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.protocolDetails}>
+            <View style={styles.detailRow}>
+              <Icon name="calendar" size={16} color="#6B7280" />
+              <Text style={styles.detailText}>
+                {formatDate(protocol.startDate)} - {formatDate(protocol.endDate)}
+              </Text>
+            </View>
+            
+            <View style={styles.detailRow}>
+              <Icon name="clock" size={16} color="#6B7280" />
+              <Text style={styles.detailText}>
+                {protocolData.duration} days • Current day: {protocol.currentDay}
+              </Text>
+            </View>
+
+            {protocolData.doctor && (
+              <View style={styles.detailRow}>
+                <Icon name="doctor" size={16} color="#6B7280" />
+                <Text style={styles.detailText}>
+                  {protocolData.doctor.name}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {protocol.status === 'ACTIVE' && (
+            <TouchableOpacity 
+              style={styles.continueButton}
+              onPress={() => {
+                navigation.navigate('Protocol', { protocol: protocol });
+              }}
+            >
+              <Text style={styles.continueButtonText}>Continue Protocol</Text>
+              <Icon name="arrow-right" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
           )}
         </View>
-
-        {protocol.status === 'ACTIVE' && (
-          <TouchableOpacity 
-            style={styles.continueButton}
-            onPress={() => {
-              navigation.navigate('Protocol', { protocol: protocol });
-            }}
-          >
-            <Text style={styles.continueButtonText}>Continue Protocol</Text>
-            <Icon name="arrow-right" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
       </Animated.View>
     );
   };
+
+  const renderProtocolSection = (title, protocolsList, emptyMessage) => {
+    if (protocolsList.length === 0) return null;
+
+    return (
+      <View style={styles.protocolSection}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {protocolsList.map((protocol, index) => renderProtocolCard(protocol, index))}
+      </View>
+    );
+  };
+
+  // Separate protocols by status
+  const activeProtocols = protocols.filter(p => p.status === 'ACTIVE');
+  const inactiveProtocols = protocols.filter(p => p.status !== 'ACTIVE');
 
   if (loading) {
     return (
@@ -242,9 +294,8 @@ const HomeScreen = () => {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Image 
-            source={require('../../assets/logo.png')} 
+            source={require('../../assets/logo.png')}
             style={styles.logo}
-            resizeMode="contain"
           />
           <View style={styles.titleContainer}>
             <Text style={styles.title}>My Protocols</Text>
@@ -254,13 +305,15 @@ const HomeScreen = () => {
           </View>
         </View>
         
-        <TouchableOpacity 
-          onPress={handleLogout} 
-          style={styles.logoutButton}
-          activeOpacity={0.7}
-        >
-          <Icon name="logout" size={22} color="#FF6B6B" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            onPress={handleLogout} 
+            style={styles.logoutButton}
+            activeOpacity={0.7}
+          >
+            <Icon name="logout" size={22} color="#FF6B6B" />
+          </TouchableOpacity>
+        </View>
       </View>
       
       <ScrollView 
@@ -306,7 +359,11 @@ const HomeScreen = () => {
           </Animated.View>
         ) : (
           <View style={styles.protocolsList}>
-            {protocols.map((protocol, index) => renderProtocolCard(protocol, index))}
+            {/* Active Protocols Section */}
+            {renderProtocolSection('Available Protocols', activeProtocols, 'No active protocols')}
+            
+            {/* Inactive Protocols Section */}
+            {renderProtocolSection('Inactive Protocols', inactiveProtocols, 'No inactive protocols')}
           </View>
         )}
       </ScrollView>
@@ -378,7 +435,6 @@ const styles = StyleSheet.create({
   protocolCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: {
@@ -388,6 +444,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    overflow: 'hidden',
   },
   protocolHeader: {
     flexDirection: 'row',
@@ -504,6 +561,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  protocolImage: {
+    width: '100%',
+    height: 200,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  protocolContent: {
+    padding: 16,
+  },
+  protocolSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 

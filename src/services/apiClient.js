@@ -3,8 +3,11 @@ import { ENV } from '../config/environment';
 import { handleApiError, showErrorAlert } from '../utils/errorHandler';
 import { isConnected } from '../utils/connectivityUtils';
 import { createLogger } from '../utils/logUtils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const logger = createLogger('ApiClient');
+
+const BASE_URL = 'https://app.cxlus.com/api';
 
 // Fila de requisições pendentes durante renovação de token
 let isRefreshing = false;

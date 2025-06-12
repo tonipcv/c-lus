@@ -11,9 +11,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Animated,
-  Dimensions,
-  ImageBackground,
   TouchableWithoutFeedback,
   Keyboard,
   Linking
@@ -24,7 +21,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { createLogger } from '../utils/logUtils';
 
 const logger = createLogger('LoginScreen');
-const { width, height } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
   const { login, isAuthenticated, loading: authLoading, error: authError } = useAuth();
@@ -32,36 +28,15 @@ const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
   const [secureTextEntry, setSecureTextEntry] = useState(true);
-
-  // Animações
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
 
   // Redirecionar se já estiver autenticado
   useEffect(() => {
     if (isAuthenticated) {
       logger.info('Usuário já autenticado, redirecionando para MainApp');
       navigation.replace('MainApp');
-    } else if (!authLoading) {
-      // Animar a entrada da tela
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 600,
-          useNativeDriver: true,
-        })
-      ]).start();
     }
-  }, [isAuthenticated, authLoading, navigation, fadeAnim, slideAnim]);
+  }, [isAuthenticated, navigation]);
 
   // Mostrar erro de autenticação quando necessário
   useEffect(() => {
@@ -156,21 +131,13 @@ const LoginScreen = ({ navigation }) => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <SafeAreaView style={styles.container}>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
         <View style={styles.mainContent}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardView}
           >
-            <Animated.View 
-              style={[
-                styles.formContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }]
-                }
-              ]}
-            >
+            <View style={styles.formContainer}>
               <View style={styles.logoContainer}>
                 <Image 
                   source={require('../../assets/logo.png')} 
@@ -183,28 +150,19 @@ const LoginScreen = ({ navigation }) => {
                 <Icon 
                   name="email-outline" 
                   size={20} 
-                  color={emailFocused ? "#0088FE" : "#94A3B8"} 
+                  color="#cccccc" 
                   style={styles.inputIcon} 
                 />
                 <TextInput
-                  style={[
-                    styles.input, 
-                    emailFocused && styles.inputFocused
-                  ]}
+                  style={styles.input}
                   placeholder="Your email"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor="#888888"
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
                   value={email}
                   onChangeText={setEmail}
-                  onFocus={() => {
-                    setEmailFocused(true);
-                    setKeyboardVisible(true);
-                  }}
-                  onBlur={() => {
-                    setEmailFocused(false);
-                    setKeyboardVisible(false);
-                  }}
                 />
               </View>
 
@@ -212,31 +170,19 @@ const LoginScreen = ({ navigation }) => {
                 <Icon 
                   name="lock-outline" 
                   size={20} 
-                  color={passwordFocused ? "#0088FE" : "#94A3B8"} 
+                  color="#cccccc" 
                   style={styles.inputIcon} 
                 />
                 <TextInput
-                  style={[
-                    styles.input, 
-                    passwordFocused && styles.inputFocused
-                  ]}
+                  style={styles.input}
                   placeholder="Your password"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor="#888888"
                   secureTextEntry={secureTextEntry}
                   value={password}
                   onChangeText={setPassword}
                   autoCapitalize="none"
-                  autoComplete="off"
-                  textContentType="none"
-                  passwordRules=""
-                  onFocus={() => {
-                    setPasswordFocused(true);
-                    setKeyboardVisible(true);
-                  }}
-                  onBlur={() => {
-                    setPasswordFocused(false);
-                    setKeyboardVisible(false);
-                  }}
+                  autoComplete="password"
+                  autoCorrect={false}
                 />
                 <TouchableOpacity 
                   style={styles.passwordToggle}
@@ -245,7 +191,7 @@ const LoginScreen = ({ navigation }) => {
                   <Icon 
                     name={secureTextEntry ? "eye-outline" : "eye-off-outline"} 
                     size={20} 
-                    color="#94A3B8" 
+                    color="#cccccc" 
                   />
                 </TouchableOpacity>
               </View>
@@ -279,29 +225,19 @@ const LoginScreen = ({ navigation }) => {
                 onPress={() => navigation.navigate('Register')}
                 activeOpacity={0.8}
               >
-                <Icon name="account-plus" size={20} color="#0088FE" style={styles.registerButtonIcon} />
                 <Text style={styles.registerButtonText}>Create New Account</Text>
               </TouchableOpacity>
-            </Animated.View>
+            </View>
 
-            {!isKeyboardVisible && (
-              <Animated.View 
-                style={[
-                  styles.footer,
-                  {
-                    opacity: fadeAnim
-                  }
-                ]}
-              >
-                <View style={styles.securityInfo}>
-                  <Icon name="shield-check" size={16} color="#64748B" />
-                  <Text style={styles.securityText}>Secure connection</Text>
-                </View>
-                <Text style={styles.footerText}>
-                  Your account is protected and secure
-                </Text>
-              </Animated.View>
-            )}
+            <View style={styles.footer}>
+              <View style={styles.securityInfo}>
+                <Icon name="shield-check" size={16} color="#cccccc" />
+                <Text style={styles.securityText}>Secure connection</Text>
+              </View>
+              <Text style={styles.footerText}>
+                Your account is protected and secure
+              </Text>
+            </View>
           </KeyboardAvoidingView>
         </View>
       </SafeAreaView>
@@ -312,7 +248,7 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0a0a0a',
   },
   mainContent: {
     flex: 1,
@@ -323,51 +259,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   formContainer: {
-    backgroundColor: '#FFFFFF',
-    padding: 10,
+    backgroundColor: 'transparent', // Same as background for minimalist look
+    padding: 24,
     marginBottom: 30,
-    borderRadius: 12,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 40,
   },
   logo: {
-    width: 120,
-    height: 120,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 32,
-    textAlign: 'center',
+    width: 80, // Smaller logo
+    height: 80, // Smaller logo
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 20,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#1a2332', // Slightly lighter navy
     borderRadius: 12,
-    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#2a3441', // Subtle navy border
+    minHeight: 56,
   },
   inputIcon: {
-    padding: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
   },
   input: {
     flex: 1,
     paddingVertical: 15,
     paddingRight: 15,
     fontSize: 16,
-    color: '#1E293B',
-  },
-  inputFocused: {
-    color: '#0F172A',
+    color: '#ffffff',
   },
   passwordToggle: {
-    padding: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
@@ -379,73 +306,52 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   loginButton: {
-    backgroundColor: '#0088FE',
+    backgroundColor: 'transparent',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    shadowColor: "#0088FE",
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#3a3a3a',
   },
   loginButtonText: {
-    color: '#FFFFFF',
+    color: '#ffffff',
     fontSize: 18,
     fontWeight: '600',
   },
   loginButtonIcon: {
     marginLeft: 10,
+    color: '#ffffff',
   },
   footer: {
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 20,
   },
   securityInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   securityText: {
-    color: '#64748B',
-    fontSize: 14,
-    marginLeft: 8,
+    color: '#888888',
+    fontSize: 12,
+    marginLeft: 6,
   },
   footerText: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: 12,
+    color: '#666666',
   },
   registerButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    marginTop: 16,
-    borderWidth: 2,
-    borderColor: '#0088FE',
-    shadowColor: "#0088FE",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  registerButtonIcon: {
-    marginRight: 8,
+    alignSelf: 'center',
+    marginTop: 8,
   },
   registerButtonText: {
-    color: '#0088FE',
-    fontSize: 18,
-    fontWeight: '600',
+    color: '#8892a0',
+    fontSize: 14,
+    fontWeight: '400',
+    textDecorationLine: 'underline',
   },
 });
 

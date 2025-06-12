@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform } from 'react-native';
+import { Platform, Image, View } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '@react-navigation/native';
 
@@ -18,25 +18,20 @@ const TabNavigator = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#0088FE',
-        tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 0,
+          backgroundColor: '#151515',
+          borderTopWidth: 1,
+          borderTopColor: '#252525',
           height: Platform.OS === 'ios' ? 85 : 65,
           paddingBottom: Platform.OS === 'ios' ? 25 : 8,
           paddingTop: 8,
           elevation: 8,
           shadowColor: '#000000',
           shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.06,
+          shadowOpacity: 0.3,
           shadowRadius: 8,
         },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-          marginTop: 4,
-        },
+        tabBarShowLabel: false,
         tabBarItemStyle: {
           paddingVertical: 4,
         }
@@ -46,28 +41,17 @@ const TabNavigator = () => {
         name="HomeTab" 
         component={HomeScreen}
         options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, focused }) => (
-            <Icon 
-              name={focused ? "home" : "home-outline"} 
-              color={color} 
-              size={26} 
-            />
-          ),
-        }} 
-      />
-      
-      <Tab.Screen 
-        name="ProfileTab" 
-        component={PatientProfile}
-        options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, focused }) => (
-            <Icon 
-              name={focused ? "account-circle" : "account-circle-outline"} 
-              color={color} 
-              size={26} 
-            />
+          tabBarIcon: ({ focused }) => (
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Image 
+                source={require('../../assets/logo.png')} 
+                style={{
+                  width: focused ? 32 : 28,
+                  height: focused ? 32 : 28,
+                }}
+                resizeMode="contain"
+              />
+            </View>
           ),
         }} 
       />

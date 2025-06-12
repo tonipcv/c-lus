@@ -237,7 +237,7 @@ const ProtocolScreen = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'ACTIVE': return '#10B981';
+      case 'ACTIVE': return '#4ade80';
       case 'INACTIVE': return '#6B7280';
       case 'UNAVAILABLE': return '#EF4444';
       default: return '#6B7280';
@@ -305,32 +305,48 @@ const ProtocolScreen = () => {
       
       const isCurrentlyCompleted = isSessionCompleted(task.id);
       
-      if (isCurrentlyCompleted) {
-        // Desmarcar tarefa - fazer DELETE
-        logger.debug('Desmarcando tarefa', { taskId: task.id });
+      logger.debug('Alternando status da tarefa', { 
+        taskId: task.id, 
+        currentStatus: isCurrentlyCompleted ? 'completed' : 'pending' 
+      });
+      
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      const requestData = {
+        protocolTaskId: task.id,
+        date: today,
+        notes: `Task "${task.title}" ${isCurrentlyCompleted ? 'unmarked' : 'completed'} by patient`
+      };
+      
+      const response = await apiClient.post('/api/protocols/progress', requestData);
+      
+      // Update local progress state immediately based on response
+      if (response) {
+        setProgress(prevProgress => ({
+          ...prevProgress,
+          [task.id]: {
+            ...response,
+            protocolTaskId: task.id,
+            date: today
+          }
+        }));
         
-        const progressItem = getSessionProgress(task.id);
-        if (progressItem && progressItem.id) {
-          await apiClient.delete(`/api/protocols/progress/${progressItem.id}`);
-          showToast('Task unmarked! ✅', 'success');
+        // Show appropriate message based on the response
+        if (response.isCompleted === false) {
+          showToast('Task unmarked!', 'success');
+        } else if (response.isCompleted === true) {
+          showToast('Success!', 'success');
+        } else {
+          // Fallback for older API responses
+          if (isCurrentlyCompleted) {
+            showToast('Task unmarked!', 'success');
+          } else {
+            showToast('Success!', 'success');
+          }
         }
-      } else {
-        // Marcar tarefa como completa - fazer POST
-        logger.debug('Marcando tarefa como completa', { taskId: task.id });
-        
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        
-        const requestData = {
-          protocolTaskId: task.id,
-          date: today,
-          notes: `Task "${task.title}" completed by patient`
-        };
-        
-        await apiClient.post('/api/protocols/progress', requestData);
-        showToast('Success! 🎉', 'success');
       }
       
-      // Recarregar progresso
+      // Also reload progress to ensure consistency
       await loadProtocolProgress();
       
     } catch (error) {
@@ -344,7 +360,8 @@ const ProtocolScreen = () => {
   };
 
   const isSessionCompleted = (taskId) => {
-    return progress[taskId] !== undefined;
+    const taskProgress = progress[taskId];
+    return taskProgress && taskProgress.isCompleted === true;
   };
 
   const getSessionProgress = (taskId) => {
@@ -354,20 +371,24 @@ const ProtocolScreen = () => {
   const renderExpandedDayView = (day) => {
     if (!day) return null;
 
-    // Get all tasks from all sessions for this day
-    const allTasks = [];
+    // Group tasks by session
+    const tasksBySession = {};
     day.sessions?.forEach(session => {
-      if (session.tasks) {
-        session.tasks.forEach(task => {
-          allTasks.push({
+      if (session.tasks && session.tasks.length > 0) {
+        tasksBySession[session.id] = {
+          sessionTitle: session.title,
+          sessionNumber: session.sessionNumber,
+          tasks: session.tasks.map(task => ({
             ...task,
             sessionTitle: session.title,
             sessionNumber: session.sessionNumber
-          });
-        });
+          }))
+        };
       }
     });
 
+    // Get all tasks for progress calculation
+    const allTasks = Object.values(tasksBySession).flatMap(session => session.tasks);
     const completedTasks = allTasks.filter(task => isSessionCompleted(task.id)).length;
     const totalTasks = allTasks.length;
     const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
@@ -393,67 +414,74 @@ const ProtocolScreen = () => {
                 styles.expandedProgressFill, 
                 { 
                   width: `${progressPercentage}%`,
-                  backgroundColor: progressPercentage === 100 ? '#10B981' : '#0088FE'
+                  backgroundColor: progressPercentage === 100 ? '#4ade80' : '#61aed0'
                 }
               ]} 
             />
           </View>
         </View>
 
-        {/* Tasks List */}
+        {/* Tasks List grouped by Session */}
         <View style={styles.expandedTasksList}>
           <Text style={styles.expandedTasksTitle}>Today's Tasks:</Text>
           
-          {allTasks.length > 0 ? (
-            allTasks.map((task, index) => {
-              const isCompleted = isSessionCompleted(task.id);
-              
-              return (
-                <TouchableOpacity
-                  key={task.id}
-                  style={[
-                    styles.expandedTaskItem,
-                    isCompleted && styles.expandedTaskItemCompleted
-                  ]}
-                  onPress={() => handleSessionComplete(task)}
-                  disabled={completingTask && task.id === completingTaskId}
-                >
-                  <View style={styles.expandedTaskContent}>
-                    <View style={styles.expandedTaskInfo}>
-                      <Text style={[
-                        styles.expandedTaskTitle,
-                        isCompleted && styles.expandedTaskTitleCompleted
-                      ]}>
-                        {task.title}
-                      </Text>
-                      <Text style={styles.expandedTaskSession}>
-                        {task.sessionTitle}
-                      </Text>
-                      {task.description && (
-                        <Text style={[
-                          styles.expandedTaskDescription,
-                          isCompleted && styles.expandedTaskDescriptionCompleted
-                        ]}>
-                          {task.description}
-                        </Text>
-                      )}
-                    </View>
-                    
-                    <View style={styles.expandedTaskStatus}>
-                      {completingTask && task.id === completingTaskId ? (
-                        <ActivityIndicator size="small" color="#0088FE" />
-                      ) : (
-                        <Icon 
-                          name={isCompleted ? "check-circle" : "circle-outline"} 
-                          size={24} 
-                          color={isCompleted ? "#10B981" : "#0088FE"} 
-                        />
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
+          {Object.keys(tasksBySession).length > 0 ? (
+            Object.values(tasksBySession).map((sessionGroup, sessionIndex) => (
+              <View key={sessionIndex} style={styles.sessionGroup}>
+                {/* Session Category Header */}
+                <Text style={styles.sessionCategoryHeader}>
+                  {sessionGroup.sessionTitle}
+                </Text>
+                
+                {/* Tasks for this session */}
+                {sessionGroup.tasks.map((task, taskIndex) => {
+                  const isCompleted = isSessionCompleted(task.id);
+                  
+                  return (
+                    <TouchableOpacity
+                      key={task.id}
+                      style={[
+                        styles.expandedTaskItem,
+                        isCompleted && styles.expandedTaskItemCompleted
+                      ]}
+                      onPress={() => handleSessionComplete(task)}
+                      disabled={completingTask && task.id === completingTaskId}
+                    >
+                      <View style={styles.expandedTaskContent}>
+                        <View style={styles.expandedTaskInfo}>
+                          <Text style={[
+                            styles.expandedTaskTitle,
+                            isCompleted && styles.expandedTaskTitleCompleted
+                          ]}>
+                            {task.title}
+                          </Text>
+                          {task.description && (
+                            <Text style={[
+                              styles.expandedTaskDescription,
+                              isCompleted && styles.expandedTaskDescriptionCompleted
+                            ]}>
+                              {task.description}
+                            </Text>
+                          )}
+                        </View>
+                        
+                        <View style={styles.expandedTaskStatus}>
+                          {completingTask && task.id === completingTaskId ? (
+                            <ActivityIndicator size="small" color="#61aed0" />
+                          ) : (
+                            <Icon 
+                              name={isCompleted ? "check-circle" : "circle-outline"} 
+                              size={24} 
+                              color={isCompleted ? "#4ade80" : "#61aed0"} 
+                            />
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))
           ) : (
             <Text style={styles.noTasksText}>No tasks for this day.</Text>
           )}
@@ -482,7 +510,7 @@ const ProtocolScreen = () => {
                 onPress={() => setModalVisible(false)}
                 style={styles.closeButton}
               >
-                <Icon name="close" size={24} color="#6B7280" />
+                <Icon name="close" size={24} color="#cccccc" />
               </TouchableOpacity>
             </View>
 
@@ -558,9 +586,9 @@ const ProtocolScreen = () => {
                                 disabled={completingTask && task.id === completingTaskId}
                               >
                                 {completingTask && task.id === completingTaskId ? (
-                                  <ActivityIndicator size="small" color="#10B981" />
+                                  <ActivityIndicator size="small" color="#4ade80" />
                                 ) : (
-                                  <Icon name="check-circle" size={24} color="#10B981" />
+                                  <Icon name="check-circle" size={24} color="#4ade80" />
                                 )}
                               </TouchableOpacity>
                             ) : (
@@ -570,9 +598,9 @@ const ProtocolScreen = () => {
                                 disabled={completingTask && task.id === completingTaskId}
                               >
                                 {completingTask && task.id === completingTaskId ? (
-                                  <ActivityIndicator size="small" color="#0088FE" />
+                                  <ActivityIndicator size="small" color="#61aed0" />
                                 ) : (
-                                  <Icon name="circle-outline" size={24} color="#0088FE" />
+                                  <Icon name="circle-outline" size={24} color="#61aed0" />
                                 )}
                               </TouchableOpacity>
                             )}
@@ -594,7 +622,7 @@ const ProtocolScreen = () => {
 
                         {task.duration && (
                           <View style={styles.taskDetail}>
-                            <Icon name="clock" size={14} color="#6B7280" />
+                            <Icon name="clock" size={14} color="#cccccc" />
                             <Text style={styles.taskDetailText}>
                               Duration: {task.duration} minutes
                             </Text>
@@ -617,7 +645,7 @@ const ProtocolScreen = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0088FE" />
+        <ActivityIndicator size="large" color="#61aed0" />
         <Text style={styles.loadingText}>Loading protocol...</Text>
       </View>
     );
@@ -640,20 +668,20 @@ const ProtocolScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backIconButton}
         >
-          <Icon name="arrow-left" size={24} color="#1F2937" />
+          <Icon name="arrow-left" size={24} color="#ffffff" />
         </TouchableOpacity>
         
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>{protocol.protocol.name}</Text>
           <Text style={styles.headerSubtitle}>
-            Dr. {protocol.protocol.doctor.name}
+            {protocol.protocol.doctor.name}
           </Text>
         </View>
 
@@ -670,8 +698,8 @@ const ProtocolScreen = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#0088FE']}
-            tintColor="#0088FE"
+            colors={['#61aed0']}
+            tintColor="#61aed0"
           />
         }
       >
@@ -698,14 +726,14 @@ const ProtocolScreen = () => {
 
             <View style={styles.protocolDetails}>
               <View style={styles.detailRow}>
-                <Icon name="calendar" size={16} color="#6B7280" />
+                <Icon name="calendar" size={16} color="#cccccc" />
                 <Text style={styles.detailText}>
                   {formatDate(protocol.startDate)} - {formatDate(protocol.endDate)}
                 </Text>
               </View>
               
               <View style={styles.detailRow}>
-                <Icon name="clock" size={16} color="#6B7280" />
+                <Icon name="clock" size={16} color="#cccccc" />
                 <Text style={styles.detailText}>
                   {protocol.protocol.duration} days • Current day: {protocol.currentDay || 1}
                 </Text>
@@ -747,7 +775,7 @@ const ProtocolScreen = () => {
                   <Icon 
                     name={hasCheckinToday ? "check-circle" : "clipboard-text-outline"} 
                     size={20} 
-                    color={hasCheckinToday ? "#10B981" : "#0088FE"} 
+                    color={hasCheckinToday ? "#4ade80" : "#61aed0"} 
                   />
                   <Text style={[
                     styles.checkinButtonText,
@@ -758,31 +786,32 @@ const ProtocolScreen = () => {
                   </Text>
                 </View>
                 {!hasCheckinToday && (
-                  <Icon name="chevron-right" size={20} color="#0088FE" />
+                  <Icon name="chevron-right" size={20} color="#61aed0" />
                 )}
-              </TouchableOpacity>
-              
-              {/* Symptom Report Button */}
-              <TouchableOpacity
-                style={styles.symptomReportButton}
-                onPress={() => setSymptomReportModalVisible(true)}
-              >
-                <View style={styles.symptomReportButtonContent}>
-                  <Icon 
-                    name="medical-bag" 
-                    size={20} 
-                    color="#EF4444" 
-                  />
-                  <Text style={styles.symptomReportButtonText}>
-                    Report Symptoms
-                  </Text>
-                </View>
-                <Icon name="chevron-right" size={20} color="#EF4444" />
               </TouchableOpacity>
               
               {renderExpandedDayView(protocol.protocol.days[currentDayIndex])}
             </View>
           )}
+        </View>
+
+        {/* Symptom Report Button at the end */}
+        <View style={styles.symptomReportSection}>
+          <TouchableOpacity
+            style={styles.symptomReportButton}
+            onPress={() => setSymptomReportModalVisible(true)}
+          >
+            <View style={styles.symptomReportButtonContent}>
+              <Icon 
+                name="medical-bag" 
+                size={18} 
+                color="#cccccc" 
+              />
+              <Text style={styles.symptomReportButtonText}>
+                Report Symptoms
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -840,30 +869,30 @@ const ProtocolScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: '#cccccc',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
     paddingHorizontal: 40,
   },
   errorTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#374151',
+    color: '#ffffff',
     marginTop: 16,
     marginBottom: 24,
   },
@@ -884,9 +913,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#252525',
   },
   backIconButton: {
     padding: 8,
@@ -898,11 +927,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginTop: 2,
   },
   statusBadge: {
@@ -919,7 +948,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   protocolInfo: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     margin: 20,
     borderRadius: 12,
     shadowColor: '#000',
@@ -943,13 +972,13 @@ const styles = StyleSheet.create({
   },
   protocolDescription: {
     fontSize: 16,
-    color: '#374151',
+    color: '#cccccc',
     lineHeight: 24,
     marginBottom: 16,
   },
   protocolDetails: {
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#252525',
     paddingTop: 16,
   },
   detailRow: {
@@ -959,7 +988,7 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginLeft: 8,
   },
   daysSection: {
@@ -969,12 +998,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 16,
   },
   currentDaySection: {
     padding: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderRadius: 12,
     marginBottom: 16,
   },
@@ -984,17 +1013,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#252525',
   },
   todayTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 4,
   },
   todayDate: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
   },
   expandedDayHeader: {
     flexDirection: 'row',
@@ -1005,15 +1034,15 @@ const styles = StyleSheet.create({
   expandedDayTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
   },
   expandedDayProgress: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
   },
   expandedDayDescription: {
     fontSize: 16,
-    color: '#374151',
+    color: '#cccccc',
     lineHeight: 24,
     marginBottom: 16,
   },
@@ -1022,12 +1051,12 @@ const styles = StyleSheet.create({
   },
   expandedProgressBackground: {
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#252525',
     borderRadius: 2,
   },
   expandedProgressFill: {
     height: '100%',
-    backgroundColor: '#0088FE',
+    backgroundColor: '#61aed0',
     borderRadius: 2,
   },
   expandedTasksList: {
@@ -1036,19 +1065,20 @@ const styles = StyleSheet.create({
   expandedTasksTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 8,
   },
   expandedTaskItem: {
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
     borderRadius: 8,
     marginBottom: 8,
+    backgroundColor: '#151515',
   },
   expandedTaskItemCompleted: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#10B981',
+    backgroundColor: '#1a2e1a',
+    borderColor: '#4ade80',
   },
   expandedTaskContent: {
     flexDirection: 'row',
@@ -1061,22 +1091,22 @@ const styles = StyleSheet.create({
   expandedTaskTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
   },
   expandedTaskTitleCompleted: {
-    color: '#10B981',
+    color: '#4ade80',
   },
   expandedTaskSession: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
   },
   expandedTaskDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginTop: 2,
   },
   expandedTaskDescriptionCompleted: {
-    color: '#059669',
+    color: '#4ade80',
   },
   expandedTaskStatus: {
     marginLeft: 12,
@@ -1086,15 +1116,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
     borderRadius: 8,
     marginBottom: 16,
   },
   checkinButtonCompleted: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#10B981',
+    backgroundColor: '#1a2e1a',
+    borderColor: '#4ade80',
   },
   checkinButtonContent: {
     flexDirection: 'row',
@@ -1103,11 +1133,11 @@ const styles = StyleSheet.create({
   checkinButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginLeft: 8,
   },
   checkinButtonTextCompleted: {
-    color: '#10B981',
+    color: '#4ade80',
   },
   // Modal styles
   modalOverlay: {
@@ -1116,7 +1146,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: height * 0.8,
@@ -1127,12 +1157,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#252525',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     flex: 1,
   },
   closeButton: {
@@ -1145,12 +1175,12 @@ const styles = StyleSheet.create({
   sessionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 12,
   },
   sessionDescription: {
     fontSize: 16,
-    color: '#374151',
+    color: '#cccccc',
     lineHeight: 24,
     marginBottom: 16,
   },
@@ -1160,27 +1190,27 @@ const styles = StyleSheet.create({
   sessionNavigationTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 8,
   },
   sessionNavButton: {
     padding: 8,
     marginRight: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
     borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
   },
   sessionNavButtonActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#0088FE',
+    backgroundColor: '#1a3a5a',
+    borderColor: '#61aed0',
   },
   sessionNavButtonText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
   },
   sessionNavButtonTextActive: {
-    color: '#0088FE',
+    color: '#61aed0',
     fontWeight: '600',
   },
   tasksSection: {
@@ -1189,16 +1219,16 @@ const styles = StyleSheet.create({
   tasksSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 8,
   },
   taskCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
   },
   taskHeader: {
     flexDirection: 'row',
@@ -1212,18 +1242,18 @@ const styles = StyleSheet.create({
   taskTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
   },
   taskTitleCompleted: {
-    color: '#10B981',
+    color: '#4ade80',
   },
   taskDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginTop: 2,
   },
   taskDescriptionCompleted: {
-    color: '#059669',
+    color: '#4ade80',
   },
   taskStatus: {
     marginLeft: 12,
@@ -1233,11 +1263,11 @@ const styles = StyleSheet.create({
   },
   taskCompletedText: {
     fontSize: 14,
-    color: '#10B981',
+    color: '#4ade80',
   },
   taskNotes: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginTop: 4,
   },
   taskDetail: {
@@ -1247,7 +1277,7 @@ const styles = StyleSheet.create({
   },
   taskDetailText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginLeft: 8,
   },
   completeTaskButton: {
@@ -1255,7 +1285,7 @@ const styles = StyleSheet.create({
   },
   noTasksText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     textAlign: 'center',
   },
   toast: {
@@ -1282,7 +1312,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
   toastSuccess: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#4ade80',
   },
   toastText: {
     fontSize: 14,
@@ -1293,14 +1323,13 @@ const styles = StyleSheet.create({
   },
   symptomReportButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
     borderRadius: 8,
-    marginBottom: 16,
   },
   symptomReportButtonContent: {
     flexDirection: 'row',
@@ -1308,9 +1337,22 @@ const styles = StyleSheet.create({
   },
   symptomReportButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: '500',
+    color: '#cccccc',
     marginLeft: 8,
+  },
+  symptomReportSection: {
+    padding: 20,
+    backgroundColor: 'transparent',
+  },
+  sessionGroup: {
+    marginBottom: 16,
+  },
+  sessionCategoryHeader: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#61aed0',
+    marginBottom: 8,
   },
 });
 

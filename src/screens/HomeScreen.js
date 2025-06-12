@@ -30,6 +30,7 @@ const HomeScreen = () => {
   const [protocols, setProtocols] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
   
   // Animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -38,6 +39,7 @@ const HomeScreen = () => {
   useEffect(() => {
     if (isAuthenticated) {
       loadProtocols();
+      loadUserProfile();
     }
   }, [isAuthenticated]);
 
@@ -58,6 +60,18 @@ const HomeScreen = () => {
       ]).start();
     }
   }, [loading, fadeAnim, slideAnim]);
+
+  const loadUserProfile = async () => {
+    try {
+      logger.debug('Carregando perfil do usuário');
+      const response = await apiClient.get('/api/patient/profile');
+      setUserProfile(response.user);
+      logger.info('Perfil do usuário carregado com sucesso');
+    } catch (error) {
+      logger.error('Erro ao carregar perfil do usuário:', error);
+      setUserProfile(null);
+    }
+  };
 
   const loadProtocols = async () => {
     try {
@@ -83,6 +97,7 @@ const HomeScreen = () => {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadProtocols();
+    await loadUserProfile();
     setRefreshing(false);
   };
 
@@ -133,9 +148,13 @@ const HomeScreen = () => {
     );
   };
 
+  const handleProfilePress = () => {
+    navigation.navigate('PatientProfile');
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
-      case 'ACTIVE': return '#10B981';
+      case 'ACTIVE': return '#4ade80';
       case 'INACTIVE': return '#6B7280';
       case 'UNAVAILABLE': return '#EF4444';
       default: return '#6B7280';
@@ -210,54 +229,54 @@ const HomeScreen = () => {
         />
         
         <View style={styles.protocolContent}>
-          <View style={styles.protocolHeader}>
-            <View style={styles.protocolInfo}>
-              <Text style={styles.protocolTitle}>{protocolData.name}</Text>
-              <Text style={styles.protocolDescription} numberOfLines={2}>
-                {protocolData.description}
-              </Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(protocol.status) }]}>
-              <Text style={styles.statusText}>{getStatusText(protocol.status)}</Text>
-            </View>
+        <View style={styles.protocolHeader}>
+          <View style={styles.protocolInfo}>
+            <Text style={styles.protocolTitle}>{protocolData.name}</Text>
+            <Text style={styles.protocolDescription} numberOfLines={2}>
+              {protocolData.description}
+            </Text>
           </View>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(protocol.status) }]}>
+            <Text style={styles.statusText}>{getStatusText(protocol.status)}</Text>
+          </View>
+        </View>
 
-          <View style={styles.protocolDetails}>
-            <View style={styles.detailRow}>
-              <Icon name="calendar" size={16} color="#6B7280" />
-              <Text style={styles.detailText}>
-                {formatDate(protocol.startDate)} - {formatDate(protocol.endDate)}
-              </Text>
-            </View>
-            
-            <View style={styles.detailRow}>
-              <Icon name="clock" size={16} color="#6B7280" />
-              <Text style={styles.detailText}>
+        <View style={styles.protocolDetails}>
+          <View style={styles.detailRow}>
+            <Icon name="calendar" size={16} color="#cccccc" />
+            <Text style={styles.detailText}>
+              {formatDate(protocol.startDate)} - {formatDate(protocol.endDate)}
+            </Text>
+          </View>
+          
+          <View style={styles.detailRow}>
+            <Icon name="clock" size={16} color="#cccccc" />
+            <Text style={styles.detailText}>
                 {protocolData.duration} days • Current day: {protocol.currentDay}
-              </Text>
-            </View>
-
-            {protocolData.doctor && (
-              <View style={styles.detailRow}>
-                <Icon name="doctor" size={16} color="#6B7280" />
-                <Text style={styles.detailText}>
-                  {protocolData.doctor.name}
-                </Text>
-              </View>
-            )}
+            </Text>
           </View>
 
-          {protocol.status === 'ACTIVE' && (
-            <TouchableOpacity 
-              style={styles.continueButton}
-              onPress={() => {
-                navigation.navigate('Protocol', { protocol: protocol });
-              }}
-            >
-              <Text style={styles.continueButtonText}>Continue Protocol</Text>
-              <Icon name="arrow-right" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
+          {protocolData.doctor && (
+            <View style={styles.detailRow}>
+              <Icon name="doctor" size={16} color="#cccccc" />
+              <Text style={styles.detailText}>
+                {protocolData.doctor.name}
+              </Text>
+            </View>
           )}
+        </View>
+
+        {protocol.status === 'ACTIVE' && (
+          <TouchableOpacity 
+            style={styles.continueButton}
+            onPress={() => {
+              navigation.navigate('Protocol', { protocol: protocol });
+            }}
+          >
+              <Text style={styles.continueButtonText}>Continue Protocol</Text>
+            <Icon name="arrow-right" size={16} color="#cccccc" />
+          </TouchableOpacity>
+        )}
         </View>
       </Animated.View>
     );
@@ -281,22 +300,18 @@ const HomeScreen = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0088FE" />
-        <Text style={styles.loadingText}>Loading protocols...</Text>
+        <ActivityIndicator size="small" color="#cccccc" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Image 
-            source={require('../../assets/logo.png')}
-            style={styles.logo}
-          />
           <View style={styles.titleContainer}>
             <Text style={styles.title}>My Protocols</Text>
             {user?.name && (
@@ -306,13 +321,20 @@ const HomeScreen = () => {
         </View>
         
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            onPress={handleLogout} 
-            style={styles.logoutButton}
-            activeOpacity={0.7}
-          >
-            <Icon name="logout" size={22} color="#FF6B6B" />
-          </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={handleProfilePress} 
+          style={styles.profileButton}
+          activeOpacity={0.7}
+        >
+          {userProfile?.image ? (
+            <Image 
+              source={{ uri: userProfile.image }} 
+              style={styles.profileImage}
+            />
+          ) : (
+            <Icon name="account-circle" size={22} color="#61aed0" />
+          )}
+        </TouchableOpacity>
         </View>
       </View>
       
@@ -331,7 +353,7 @@ const HomeScreen = () => {
       >
         {protocols.length === 0 ? (
           <Animated.View style={[styles.emptyState, { opacity: fadeAnim }]}>
-            <Icon name="medical-bag" size={64} color="#9CA3AF" />
+            <Icon name="medical-bag" size={64} color="#cccccc" />
             <Text style={styles.emptyTitle}>No Protocols Available</Text>
             <Text style={styles.emptyDescription}>
               You don't have any active treatment protocols yet or there was a problem loading your data.
@@ -374,18 +396,18 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
+    marginTop: 12,
+    fontSize: 14,
+    color: '#cccccc',
   },
   header: {
     flexDirection: 'row',
@@ -394,9 +416,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#252525',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -414,17 +436,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#ffffff',
   },
   welcomeText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginTop: 4,
   },
   logoutButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#2a1a1a',
   },
   scrollView: {
     flex: 1,
@@ -433,7 +455,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   protocolCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderRadius: 12,
     marginBottom: 16,
     shadowColor: '#000',
@@ -459,12 +481,12 @@ const styles = StyleSheet.create({
   protocolTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 4,
   },
   protocolDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     lineHeight: 20,
   },
   statusBadge: {
@@ -487,21 +509,23 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginLeft: 8,
   },
   continueButton: {
-    backgroundColor: '#0088FE',
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#252525',
   },
   continueButtonText: {
-    color: '#FFFFFF',
+    color: '#cccccc',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     marginRight: 8,
   },
   emptyState: {
@@ -513,13 +537,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#374151',
+    color: '#ffffff',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyDescription: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#cccccc',
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -546,9 +570,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   refreshButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#151515',
     borderWidth: 1,
-    borderColor: '#0088FE',
+    borderColor: '#61aed0',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -557,7 +581,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   refreshButtonText: {
-    color: '#0088FE',
+    color: '#61aed0',
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
@@ -577,12 +601,21 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 12,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  profileButton: {
+    padding: 8,
+    borderRadius: 8,
+  },
+  profileImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
 });
 

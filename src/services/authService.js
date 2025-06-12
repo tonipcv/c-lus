@@ -164,7 +164,7 @@ export const verifyTokenWithServer = async (token, navigation) => {
     // In case of network error, consider user authenticated locally
     if (error.message?.includes('Network') || error.message?.includes('timeout')) {
       console.log('Connection error, considering locally authenticated');
-      return true;
+    return true;
     }
     
     return false;

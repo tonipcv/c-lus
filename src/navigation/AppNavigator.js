@@ -1,14 +1,17 @@
 import React from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 
 import TabNavigator from './TabNavigator';
+import WelcomeScreen from '../screens/WelcomeScreen';
+import LearnMoreScreen from '../screens/LearnMoreScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import LeadsScreen from '../screens/LeadsScreen';
 import ProtocolScreen from '../screens/ProtocolScreen';
 import SymptomReportsScreen from '../screens/SymptomReportsScreen';
+import PatientProfile from '../screens/PatientProfile';
 import { useAuth } from '../contexts/AuthContext';
 
 const Stack = createNativeStackNavigator();
@@ -33,7 +36,8 @@ const AppNavigator = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0088FE" />
+        <ActivityIndicator size="small" color="#cccccc" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
@@ -41,7 +45,7 @@ const AppNavigator = () => {
   return (
     <NavigationContainer theme={MyTheme}>
       <Stack.Navigator 
-        initialRouteName={isAuthenticated ? "MainApp" : "Login"}
+        initialRouteName={isAuthenticated ? "MainApp" : "Welcome"}
         screenOptions={{
           headerShown: false,
           animation: 'slide_from_right',
@@ -53,6 +57,14 @@ const AppNavigator = () => {
       >
         {!isAuthenticated ? (
           <>
+            <Stack.Screen 
+              name="Welcome" 
+              component={WelcomeScreen} 
+            />
+            <Stack.Screen 
+              name="LearnMore" 
+              component={LearnMoreScreen} 
+            />
             <Stack.Screen 
               name="Login" 
               component={LoginScreen} 
@@ -105,6 +117,15 @@ const AppNavigator = () => {
                 animation: 'slide_from_right',
               }} 
             />
+
+            <Stack.Screen 
+              name="PatientProfile" 
+              component={PatientProfile} 
+              options={{ 
+                headerShown: false,
+                animation: 'slide_from_right',
+              }} 
+            />
           </>
         )}
       </Stack.Navigator>
@@ -117,7 +138,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#cccccc',
   },
 });
 

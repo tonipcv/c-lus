@@ -206,19 +206,22 @@ const PatientProfile = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Image 
-            source={require('../../assets/logo.png')} 
-            style={styles.logo}
-            resizeMode="contain"
-          />
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()} 
+          style={styles.backButton}
+        >
+          <Icon name="arrow-left" size={24} color="#ffffff" />
+        </TouchableOpacity>
+        
+        <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>My Profile</Text>
         </View>
+        
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Icon name="logout" size={22} color="#FF6B6B" />
+          <Icon name="logout" size={22} color="#cccccc" />
         </TouchableOpacity>
       </View>
 
@@ -295,36 +298,36 @@ const PatientProfile = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: '#cccccc',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
     paddingHorizontal: 40,
   },
   errorTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#374151',
+    color: '#ffffff',
     marginTop: 16,
     marginBottom: 24,
   },
   errorDescription: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#cccccc',
     marginBottom: 24,
   },
   errorActions: {
@@ -349,9 +352,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   retryButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#151515',
     borderWidth: 1,
-    borderColor: '#0088FE',
+    borderColor: '#61aed0',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
@@ -360,7 +363,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   retryButtonText: {
-    color: '#0088FE',
+    color: '#61aed0',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
@@ -372,34 +375,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#252525',
   },
-  headerLeft: {
-    flexDirection: 'row',
+  backButton: {
+    padding: 8,
+    borderRadius: 8,
+  },
+  headerCenter: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-  },
-  logo: {
-    width: 32,
-    height: 32,
-    marginRight: 12,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
   },
   logoutButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#FEF2F2',
   },
   scrollView: {
     flex: 1,
   },
   profileHeader: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     margin: 20,
     padding: 20,
     borderRadius: 12,
@@ -409,7 +411,7 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 3.84,
     elevation: 5,
   },
@@ -421,7 +423,7 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 4,
-    borderColor: '#0088FE',
+    borderColor: '#61aed0',
   },
   profileInfo: {
     alignItems: 'center',
@@ -429,16 +431,16 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 4,
   },
   profileEmail: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#cccccc',
     marginBottom: 12,
   },
   roleBadge: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#252525',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -446,10 +448,10 @@ const styles = StyleSheet.create({
   roleBadgeText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#0088FE',
+    color: '#61aed0',
   },
   infoCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     marginHorizontal: 20,
     marginBottom: 16,
     borderRadius: 12,
@@ -458,7 +460,7 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 3.84,
     elevation: 5,
   },
@@ -467,12 +469,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#252525',
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginLeft: 8,
   },
   cardContent: {
@@ -491,13 +493,13 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginLeft: 8,
     flex: 1,
   },
   infoValue: {
     fontSize: 14,
-    color: '#1F2937',
+    color: '#ffffff',
     fontWeight: '500',
     flex: 1,
     textAlign: 'right',
@@ -518,17 +520,17 @@ const styles = StyleSheet.create({
   doctorName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 2,
   },
   doctorEmail: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     marginBottom: 2,
   },
   doctorPhone: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
   },
 });
 

@@ -118,7 +118,7 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
             value={response}
             onChangeText={(text) => handleResponseChange(question.id, text)}
             placeholder="Type your answer..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor="#cccccc"
             multiline
           />
         );
@@ -224,7 +224,7 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
               {hasCheckinToday ? 'Edit Check-in' : 'Daily Check-in'}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Icon name="close" size={24} color="#6B7280" />
+              <Icon name="close" size={24} color="#cccccc" />
             </TouchableOpacity>
           </View>
 
@@ -235,7 +235,7 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
             </View>
           ) : questions.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Icon name="clipboard-text-outline" size={64} color="#9CA3AF" />
+              <Icon name="clipboard-text-outline" size={64} color="#cccccc" />
               <Text style={styles.emptyText}>No check-in questions available</Text>
             </View>
           ) : (
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: height * 0.9,
@@ -358,12 +358,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#252525',
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     flex: 1,
   },
   closeButton: {
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: '#cccccc',
   },
   emptyContainer: {
     flex: 1,
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#cccccc',
     textAlign: 'center',
     marginTop: 16,
   },
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
   progressBar: {
     width: '100%',
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#252525',
     borderRadius: 2,
     marginBottom: 8,
   },
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
   },
   content: {
     flex: 1,
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   questionText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 20,
     lineHeight: 24,
   },
@@ -431,15 +431,15 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   textInput: {
-    backgroundColor: '#F9FAFB',
-    color: '#1F2937',
+    backgroundColor: '#0a0a0a',
+    color: '#ffffff',
     padding: 16,
     borderRadius: 12,
     fontSize: 16,
     minHeight: 100,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
   },
   scaleContainer: {
     flexDirection: 'row',
@@ -451,9 +451,9 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#0a0a0a',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
   scaleButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#cccccc',
   },
   scaleButtonTextSelected: {
     color: '#FFFFFF',
@@ -477,9 +477,9 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#0a0a0a',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
     alignItems: 'center',
   },
   yesNoButtonSelected: {
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
   yesNoButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#cccccc',
   },
   yesNoButtonTextSelected: {
     color: '#FFFFFF',
@@ -500,9 +500,9 @@ const styles = StyleSheet.create({
   multipleChoiceButton: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#0a0a0a',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
     alignItems: 'center',
   },
   multipleChoiceButtonSelected: {
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   multipleChoiceButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#cccccc',
   },
   multipleChoiceButtonTextSelected: {
     color: '#FFFFFF',
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#2a1a1a',
     padding: 12,
     borderRadius: 8,
     marginTop: 16,
@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#252525',
   },
   navButton: {
     paddingHorizontal: 20,
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   navButtonTextDisabled: {
-    color: '#9CA3AF',
+    color: '#666666',
   },
   nextButton: {
     backgroundColor: '#0088FE',
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   nextButtonDisabled: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#252525',
   },
   nextButtonText: {
     color: '#FFFFFF',
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   nextButtonTextDisabled: {
-    color: '#9CA3AF',
+    color: '#666666',
   },
   submitButton: {
     backgroundColor: '#0088FE',
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitButtonDisabled: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#252525',
   },
   submitButtonText: {
     color: '#FFFFFF',

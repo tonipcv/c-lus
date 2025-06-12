@@ -219,13 +219,15 @@ const RegisterScreen = ({ navigation }) => {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Full Name</Text>
               <View style={[styles.inputWrapper, errors.name && styles.inputError]}>
-                <Icon name="account" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Icon name="account" size={20} color="#cccccc" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your full name"
+                  placeholder="Your full name"
+                  placeholderTextColor="#888888"
                   value={formData.name}
                   onChangeText={(text) => updateFormData('name', text)}
                   autoCapitalize="words"
+                  autoComplete="name"
                   autoCorrect={false}
                 />
               </View>
@@ -236,14 +238,16 @@ const RegisterScreen = ({ navigation }) => {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email</Text>
               <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
-                <Icon name="email" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Icon name="email" size={20} color="#cccccc" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your email"
+                  placeholder="Your email address"
+                  placeholderTextColor="#888888"
                   value={formData.email}
                   onChangeText={(text) => updateFormData('email', text)}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  autoComplete="email"
                   autoCorrect={false}
                 />
               </View>
@@ -254,13 +258,16 @@ const RegisterScreen = ({ navigation }) => {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Phone</Text>
               <View style={[styles.inputWrapper, errors.phone && styles.inputError]}>
-                <Icon name="phone" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Icon name="phone" size={20} color="#cccccc" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="+5511999999999"
+                  placeholder="Your phone number"
+                  placeholderTextColor="#888888"
                   value={formData.phone}
                   onChangeText={(text) => updateFormData('phone', formatPhone(text))}
                   keyboardType="phone-pad"
+                  autoComplete="tel"
+                  autoCorrect={false}
                 />
               </View>
               {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
@@ -270,10 +277,11 @@ const RegisterScreen = ({ navigation }) => {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
               <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
-                <Icon name="lock" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Icon name="lock" size={20} color="#cccccc" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your password"
+                  placeholder="Create a password"
+                  placeholderTextColor="#888888"
                   value={formData.password}
                   onChangeText={(text) => updateFormData('password', text)}
                   secureTextEntry={!showPassword}
@@ -294,7 +302,7 @@ const RegisterScreen = ({ navigation }) => {
                   <Icon 
                     name={showPassword ? "eye-off" : "eye"} 
                     size={20} 
-                    color="#9CA3AF" 
+                    color="#cccccc" 
                   />
                 </TouchableOpacity>
               </View>
@@ -305,10 +313,11 @@ const RegisterScreen = ({ navigation }) => {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Confirm Password</Text>
               <View style={[styles.inputWrapper, errors.confirmPassword && styles.inputError]}>
-                <Icon name="lock-check" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Icon name="lock-check" size={20} color="#cccccc" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Confirm your password"
+                  placeholderTextColor="#888888"
                   value={formData.confirmPassword}
                   onChangeText={(text) => updateFormData('confirmPassword', text)}
                   secureTextEntry={!showConfirmPassword}
@@ -329,7 +338,7 @@ const RegisterScreen = ({ navigation }) => {
                   <Icon 
                     name={showConfirmPassword ? "eye-off" : "eye"} 
                     size={20} 
-                    color="#9CA3AF" 
+                    color="#cccccc" 
                   />
                 </TouchableOpacity>
               </View>
@@ -369,7 +378,7 @@ const RegisterScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0a0a0a',
   },
   scrollContainer: {
     flexGrow: 1,
@@ -389,13 +398,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#cccccc',
     textAlign: 'center',
     marginBottom: 40,
     lineHeight: 24,
@@ -410,16 +419,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#ffffff',
     marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#2a2a2a',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#3a3a3a',
     paddingHorizontal: 16,
     height: 56,
   },
@@ -432,7 +441,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#1F2937',
+    color: '#ffffff',
   },
   eyeIcon: {
     padding: 4,
@@ -447,7 +456,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0088FE',
+    backgroundColor: '#61aed0',
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
@@ -470,11 +479,11 @@ const styles = StyleSheet.create({
   },
   loginLinkText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
   },
   loginLink: {
     fontSize: 14,
-    color: '#0088FE',
+    color: '#61aed0',
     fontWeight: '600',
   },
 });

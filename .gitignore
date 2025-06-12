@@ -63,7 +63,7 @@ web-build/
 .metro-health-check*
 
 # Testing
-/coverage
+/coverage 
 
 # Security & Sensitive Files
 *.pem

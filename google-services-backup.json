@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "349680331672",
+    "project_id": "teste23-d1003",
+    "storage_bucket": "teste23-d1003.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:349680331672:android:3be6209e2f6eb29864d9ed",
+        "android_client_info": {
+          "package_name": "com.krxlabs.cxlus"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "349680331672-placeholder.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHsAR9E54AxQ5qWcA6FYwWuE6pzqciyR8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "349680331672-placeholder.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+} 

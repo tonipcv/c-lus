@@ -12,6 +12,7 @@ import LeadsScreen from '../screens/LeadsScreen';
 import ProtocolScreen from '../screens/ProtocolScreen';
 import SymptomReportsScreen from '../screens/SymptomReportsScreen';
 import PatientProfile from '../screens/PatientProfile';
+import NotificationTestScreen from '../screens/NotificationTestScreen';
 import { useAuth } from '../contexts/AuthContext';
 
 const Stack = createNativeStackNavigator();
@@ -124,6 +125,24 @@ const AppNavigator = () => {
               options={{ 
                 headerShown: false,
                 animation: 'slide_from_right',
+              }} 
+            />
+
+            <Stack.Screen 
+              name="NotificationTest" 
+              component={NotificationTestScreen} 
+              options={{ 
+                title: 'Teste de Notificações',
+                headerShown: true,
+                headerStyle: {
+                  backgroundColor: '#2196F3',
+                },
+                headerTitleStyle: {
+                  color: '#FFFFFF',
+                  fontWeight: '600',
+                },
+                headerTintColor: '#FFFFFF',
+                headerShadowVisible: false,
               }} 
             />
           </>

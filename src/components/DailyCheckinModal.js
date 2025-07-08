@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import dailyCheckinService from '../services/dailyCheckinService';
@@ -126,23 +128,36 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
       case 'SCALE':
         return (
           <View style={styles.scaleContainer}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
-              <TouchableOpacity
-                key={value}
-                style={[
-                  styles.scaleButton,
-                  response === value.toString() && styles.scaleButtonSelected
-                ]}
-                onPress={() => handleResponseChange(question.id, value.toString())}
-              >
-                <Text style={[
-                  styles.scaleButtonText,
-                  response === value.toString() && styles.scaleButtonTextSelected
-                ]}>
-                  {value}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            <Text style={styles.scaleDescription}>
+              {response ? `Selected level: ${response}/10` : 'Select a level from 1 to 10'}
+            </Text>
+            <View style={styles.scaleLabels}>
+              <Text style={styles.scaleLabelText}>Mild</Text>
+              <Text style={styles.scaleLabelText}>Severe</Text>
+            </View>
+            <View style={styles.scaleButtonsContainer}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+                <TouchableOpacity
+                  key={value}
+                  style={[
+                    styles.scaleButton,
+                    response === value.toString() && styles.scaleButtonSelected,
+                    value <= 3 && styles.scaleButtonMild,
+                    value > 3 && value <= 6 && styles.scaleButtonModerate,
+                    value > 6 && value <= 8 && styles.scaleButtonSevere,
+                    value > 8 && styles.scaleButtonVerySevere,
+                  ]}
+                  onPress={() => handleResponseChange(question.id, value.toString())}
+                >
+                  <Text style={[
+                    styles.scaleButtonText,
+                    response === value.toString() && styles.scaleButtonTextSelected
+                  ]}>
+                    {value}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         );
 
@@ -216,7 +231,10 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalOverlay}
+      >
         <View style={styles.modalContent}>
           {/* Header */}
           <View style={styles.header}>
@@ -258,7 +276,12 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
               )}
 
               {/* Question */}
-              <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+              <ScrollView 
+                style={styles.content} 
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.scrollContent}
+              >
                 <View style={styles.questionContainer}>
                   <Text style={styles.questionText}>
                     {questions[currentQuestionIndex]?.question}
@@ -334,7 +357,7 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
             </>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -417,6 +440,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
   questionContainer: {
     paddingVertical: 20,
   },
@@ -442,15 +469,35 @@ const styles = StyleSheet.create({
     borderColor: '#252525',
   },
   scaleContainer: {
+    width: '100%',
+    paddingVertical: 16,
+  },
+  scaleDescription: {
+    fontSize: 16,
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  scaleLabels: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 8,
+    paddingHorizontal: 10,
+    marginBottom: 8,
+  },
+  scaleLabelText: {
+    fontSize: 14,
+    color: '#cccccc',
+  },
+  scaleButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 6,
   },
   scaleButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#0a0a0a',
     borderWidth: 1,
     borderColor: '#252525',
@@ -461,8 +508,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#0088FE',
     borderColor: '#0088FE',
   },
+  scaleButtonMild: {
+    borderColor: '#10B981',
+  },
+  scaleButtonModerate: {
+    borderColor: '#FBBF24',
+  },
+  scaleButtonSevere: {
+    borderColor: '#F97316',
+  },
+  scaleButtonVerySevere: {
+    borderColor: '#EF4444',
+  },
   scaleButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#cccccc',
   },

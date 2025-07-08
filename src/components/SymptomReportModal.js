@@ -9,6 +9,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -133,7 +135,10 @@ const SymptomReportModal = ({ visible, onClose, protocolId, protocolName, curren
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalOverlay}
+      >
         <View style={styles.modalContent}>
           {/* Header */}
           <View style={styles.header}>
@@ -148,7 +153,12 @@ const SymptomReportModal = ({ visible, onClose, protocolId, protocolName, curren
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.content} 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+          >
             {/* Title Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Report Title</Text>
@@ -236,7 +246,7 @@ const SymptomReportModal = ({ visible, onClose, protocolId, protocolName, curren
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -248,11 +258,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#151515',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: height * 0.9,
-    minHeight: height * 0.7,
+    minHeight: height * 0.6,
   },
   header: {
     flexDirection: 'row',
@@ -260,7 +270,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#252525',
   },
   headerInfo: {
     flex: 1,
@@ -268,12 +278,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
-    marginTop: 2,
+    color: '#cccccc',
+    marginTop: 4,
   },
   closeButton: {
     padding: 4,
@@ -282,26 +292,30 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
   inputGroup: {
     marginBottom: 20,
   },
   inputLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     marginBottom: 8,
   },
   required: {
     color: '#EF4444',
   },
   textInput: {
-    backgroundColor: '#F9FAFB',
-    color: '#1F2937',
+    backgroundColor: '#0a0a0a',
+    color: '#ffffff',
     padding: 16,
     borderRadius: 12,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
   },
   textArea: {
     minHeight: 100,
@@ -309,83 +323,83 @@ const styles = StyleSheet.create({
   },
   characterCount: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#cccccc',
     textAlign: 'right',
     marginTop: 4,
   },
   severityContainer: {
-    marginTop: 8,
+    width: '100%',
+    paddingVertical: 16,
   },
   severityLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
+    color: '#ffffff',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   severityDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#cccccc',
     textAlign: 'center',
     marginBottom: 16,
   },
   severityScale: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
+    gap: 6,
   },
   severityButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#0a0a0a',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#252525',
     justifyContent: 'center',
     alignItems: 'center',
   },
   severityButtonSelected: {
-    borderWidth: 2,
+    backgroundColor: '#0088FE',
+    borderColor: '#0088FE',
   },
   severityButtonMild: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#16A34A',
+    borderColor: '#10B981',
   },
   severityButtonModerate: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#D97706',
+    borderColor: '#FBBF24',
   },
   severityButtonSevere: {
-    backgroundColor: '#FED7AA',
-    borderColor: '#EA580C',
+    borderColor: '#F97316',
   },
   severityButtonVerySevere: {
-    backgroundColor: '#FECACA',
-    borderColor: '#DC2626',
+    borderColor: '#EF4444',
   },
   severityButtonText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#cccccc',
   },
   severityButtonTextSelected: {
-    color: '#1F2937',
+    color: '#FFFFFF',
   },
   severityLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    marginTop: 8,
   },
   severityLabelText: {
-    fontSize: 12,
-    color: '#6B7280',
+    fontSize: 14,
+    color: '#cccccc',
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#2a1a1a',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 16,
+    marginTop: 16,
   },
   errorText: {
     fontSize: 14,
@@ -398,31 +412,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    gap: 12,
+    borderTopColor: '#252525',
   },
   cancelButton: {
-    flex: 1,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
   },
   cancelButtonText: {
-    color: '#6B7280',
+    color: '#0088FE',
     fontSize: 16,
     fontWeight: '600',
   },
   submitButton: {
-    flex: 1,
     backgroundColor: '#0088FE',
+    paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+    minWidth: 120,
     alignItems: 'center',
   },
   submitButtonDisabled: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#252525',
   },
   submitButtonText: {
     color: '#FFFFFF',

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { NotificationProvider } from './src/contexts/NotificationContext';
 import { setupGlobalErrorHandler } from './src/utils/errorHandler';
 import './src/config/environment';
 
@@ -13,7 +14,9 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <AppNavigator />
+      <NotificationProvider>
+        <AppNavigator />
+      </NotificationProvider>
     </AuthProvider>
   );
 }

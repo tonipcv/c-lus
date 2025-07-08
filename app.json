@@ -2,7 +2,7 @@
   "expo": {
     "name": "CXLUS",
     "slug": "cxlus",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,7 +19,8 @@
       "bundleIdentifier": "com.krxlabs.cxlus",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "package": "com.krxlabs.cxlus",
@@ -33,7 +34,22 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-dev-client"
+      "expo-dev-client",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff"
+        }
+      ],
+      "@react-native-firebase/app",
+      [
+        "@react-native-firebase/messaging",
+        {
+          "autolinkIOS": true,
+          "autolinkAndroid": true
+        }
+      ]
     ],
     "extra": {
       "eas": {

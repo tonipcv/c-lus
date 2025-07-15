@@ -57,7 +57,8 @@ const AppNavigator = () => {
         }}
       >
         {!isAuthenticated ? (
-          <>
+          // Telas de autenticação
+          <Stack.Group>
             <Stack.Screen 
               name="Welcome" 
               component={WelcomeScreen} 
@@ -74,16 +75,15 @@ const AppNavigator = () => {
               name="Register" 
               component={RegisterScreen} 
             />
-          </>
+          </Stack.Group>
         ) : (
-          <>
-            {/* Tab Navigator como tela principal após o login */}
+          // Telas do app
+          <Stack.Group>
             <Stack.Screen 
               name="MainApp" 
               component={TabNavigator} 
             />
             
-            {/* Telas adicionais que podem ser acessadas a partir das tabs */}
             <Stack.Screen 
               name="Leads" 
               component={LeadsScreen} 
@@ -145,7 +145,7 @@ const AppNavigator = () => {
                 headerShadowVisible: false,
               }} 
             />
-          </>
+          </Stack.Group>
         )}
       </Stack.Navigator>
     </NavigationContainer>

@@ -19,12 +19,13 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
 import { createLogger } from '../utils/logUtils';
+import { AuthError } from '../utils/errorHandler';
 
 const logger = createLogger('PatientProfile');
 
 const PatientProfile = () => {
   const navigation = useNavigation();
-  const { logout } = useAuth();
+  const { logout, isAuthenticated, handleSessionExpired } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -34,8 +35,12 @@ const PatientProfile = () => {
   const translateAnim = useRef(new Animated.Value(50)).current;
   
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    if (isAuthenticated) {
+      fetchProfile();
+    } else {
+      navigation.replace('Login');
+    }
+  }, [isAuthenticated]);
   
   // Animar elementos quando os dados carregarem
   useEffect(() => {
@@ -66,6 +71,9 @@ const PatientProfile = () => {
       
     } catch (error) {
       logger.error('Erro ao carregar perfil:', error);
+      if (error instanceof AuthError) {
+        handleSessionExpired();
+      }
       // Não mostrar alert, apenas definir profile como null
       setProfile(null);
     } finally {
@@ -213,7 +221,7 @@ const PatientProfile = () => {
           onPress={() => navigation.goBack()} 
           style={styles.backButton}
         >
-          <Icon name="arrow-left" size={24} color="#ffffff" />
+          <Icon name="arrow-left" size={24} color="#333333" />
         </TouchableOpacity>
         
         <View style={styles.headerCenter}>
@@ -274,22 +282,7 @@ const PatientProfile = () => {
           </>
         ))}
 
-        {/* Médico Responsável */}
-        {profile.doctor && renderInfoCard('Responsible Doctor', 'doctor', (
-          <View style={styles.doctorInfo}>
-            <Image 
-              source={{ uri: profile.doctor.image || 'https://via.placeholder.com/60/0088FE/FFFFFF?text=DR' }} 
-              style={styles.doctorImage} 
-            />
-            <View style={styles.doctorDetails}>
-              <Text style={styles.doctorName}>{profile.doctor.name}</Text>
-              <Text style={styles.doctorEmail}>{profile.doctor.email}</Text>
-              {profile.doctor.phone && (
-                <Text style={styles.doctorPhone}>{profile.doctor.phone}</Text>
-              )}
-            </View>
-          </View>
-        ))}
+        
       </ScrollView>
     </View>
   );
@@ -298,7 +291,7 @@ const PatientProfile = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#F5F7FA',
   },
   loadingContainer: {
     flex: 1,
@@ -375,9 +368,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 20,
-    backgroundColor: '#151515',
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: '#E8ECF2',
   },
   backButton: {
     padding: 8,
@@ -389,9 +382,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#333333',
   },
   logoutButton: {
     padding: 8,
@@ -401,7 +394,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileHeader: {
-    backgroundColor: '#151515',
+    backgroundColor: '#FFFFFF',
     margin: 20,
     padding: 20,
     borderRadius: 12,
@@ -431,16 +424,16 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#333333',
     marginBottom: 4,
   },
   profileEmail: {
     fontSize: 16,
-    color: '#cccccc',
+    color: '#666666',
     marginBottom: 12,
   },
   roleBadge: {
-    backgroundColor: '#252525',
+    backgroundColor: '#E8ECF2',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -451,7 +444,7 @@ const styles = StyleSheet.create({
     color: '#61aed0',
   },
   infoCard: {
-    backgroundColor: '#151515',
+    backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
     marginBottom: 16,
     borderRadius: 12,
@@ -469,13 +462,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: '#E8ECF2',
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
-    marginLeft: 8,
+    color: '#333333',
+    marginLeft: 12,
   },
   cardContent: {
     padding: 16,
@@ -492,17 +485,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
-    fontSize: 14,
-    color: '#cccccc',
+    fontSize: 16,
+    color: '#666666',
     marginLeft: 8,
-    flex: 1,
   },
   infoValue: {
-    fontSize: 14,
-    color: '#ffffff',
-    fontWeight: '500',
-    flex: 1,
-    textAlign: 'right',
+    fontSize: 16,
+    color: '#333333',
+    marginLeft: 'auto',
   },
   doctorInfo: {
     flexDirection: 'row',
@@ -520,17 +510,17 @@ const styles = StyleSheet.create({
   doctorName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#333333',
     marginBottom: 2,
   },
   doctorEmail: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#666666',
     marginBottom: 2,
   },
   doctorPhone: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#666666',
   },
 });
 

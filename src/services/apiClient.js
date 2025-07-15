@@ -1,6 +1,6 @@
 import { getToken, getAuthHeaders, isTokenValid, isTokenExpiringSoon } from '../utils/jwtUtils';
 import { ENV } from '../config/environment';
-import { handleApiError, showErrorAlert } from '../utils/errorHandler';
+import { handleApiError, showErrorAlert, AuthError } from '../utils/errorHandler';
 import { isConnected } from '../utils/connectivityUtils';
 import { createLogger } from '../utils/logUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -47,7 +47,7 @@ export const apiRequest = async (endpoint, options = {}) => {
       
       if (!tokenValid) {
         logger.debug('Token inválido, redirecionando para login');
-        throw new Error('Sessão expirada');
+        throw new AuthError('Sessão expirada');
       }
     }
     

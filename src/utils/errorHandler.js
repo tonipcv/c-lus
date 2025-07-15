@@ -54,6 +54,12 @@ const HTTP_ERROR_MESSAGES = {
  * @returns {Error} O erro processado
  */
 export const handleApiError = async (error) => {
+  // Se já é um AuthError, retorne-o diretamente
+  if (error instanceof AuthError) {
+    logger.warn('Erro de autenticação detectado', error);
+    return error;
+  }
+
   if (!error.response) {
     // Verificar se é um problema de conectividade
     const connected = await isConnected();

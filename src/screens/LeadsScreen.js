@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import leadService from '../services/leadService';
 import { showErrorAlert } from '../utils/errorHandler';
 import { createLogger } from '../utils/logUtils';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const logger = createLogger('LeadsScreen');
 
@@ -288,12 +289,7 @@ const LeadsScreen = () => {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0088FE" />
-        <Text style={styles.loadingText}>Carregando leads...</Text>
-      </View>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

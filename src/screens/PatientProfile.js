@@ -19,6 +19,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
 import { createLogger } from '../utils/logUtils';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { AuthError } from '../utils/errorHandler';
 
 const logger = createLogger('PatientProfile');
@@ -174,12 +175,7 @@ const PatientProfile = () => {
   );
 
   if (loading && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0088FE" />
-        <Text style={styles.loadingText}>Loading your profile...</Text>
-      </View>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!profile) {

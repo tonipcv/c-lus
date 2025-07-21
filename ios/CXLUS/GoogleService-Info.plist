@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.krxlabs.cxlus</string>
+	<string>com.krx.cxlus</string>
 	<key>PROJECT_ID</key>
 	<string>teste23-d1003</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:349680331672:ios:89580512fe23b5de64d9ed</string>
+	<string>1:349680331672:ios:3be6209e2f6eb29864d9ed</string>
 </dict>
 </plist>

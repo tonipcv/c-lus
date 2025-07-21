@@ -1,9 +1,9 @@
 import React from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 
-import TabNavigator from './TabNavigator';
+import HomeScreen from '../screens/HomeScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import LearnMoreScreen from '../screens/LearnMoreScreen';
 import LoginScreen from '../screens/LoginScreen';
@@ -13,6 +13,11 @@ import ProtocolScreen from '../screens/ProtocolScreen';
 import SymptomReportsScreen from '../screens/SymptomReportsScreen';
 import PatientProfile from '../screens/PatientProfile';
 import NotificationTestScreen from '../screens/NotificationTestScreen';
+import CoursesScreen from '../screens/CoursesScreen';
+import CourseDetailScreen from '../screens/CourseDetailScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import FloatingTabNavigator from '../components/FloatingTabNavigator';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../contexts/AuthContext';
 
 const Stack = createNativeStackNavigator();
@@ -35,12 +40,7 @@ const AppNavigator = () => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#cccccc" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -81,7 +81,7 @@ const AppNavigator = () => {
           <Stack.Group>
             <Stack.Screen 
               name="MainApp" 
-              component={TabNavigator} 
+              component={FloatingTabNavigator} 
             />
             
             <Stack.Screen 
@@ -145,25 +145,38 @@ const AppNavigator = () => {
                 headerShadowVisible: false,
               }} 
             />
+
+            <Stack.Screen 
+              name="Courses" 
+              component={CoursesScreen} 
+              options={{ 
+                headerShown: false,
+                animation: 'slide_from_right',
+              }} 
+            />
+
+            <Stack.Screen 
+              name="CourseDetail" 
+              component={CourseDetailScreen} 
+              options={{ 
+                headerShown: false,
+                animation: 'slide_from_right',
+              }} 
+            />
+
+            <Stack.Screen 
+              name="ProfileScreen" 
+              component={ProfileScreen} 
+              options={{ 
+                headerShown: false,
+                animation: 'slide_from_right',
+              }} 
+            />
           </Stack.Group>
         )}
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0a0a0a',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#cccccc',
-  },
-});
 
 export default AppNavigator;

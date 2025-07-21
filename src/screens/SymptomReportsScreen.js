@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import symptomReportsService from '../services/symptomReportsService';
 import { createLogger } from '../utils/logUtils';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const logger = createLogger('SymptomReportsScreen');
 const { width } = Dimensions.get('window');
@@ -262,12 +263,7 @@ const SymptomReportsScreen = () => {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0088FE" />
-        <Text style={styles.loadingText}>Loading symptom reports...</Text>
-      </View>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

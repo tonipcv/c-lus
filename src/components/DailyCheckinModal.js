@@ -16,6 +16,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import dailyCheckinService from '../services/dailyCheckinService';
 import { createLogger } from '../utils/logUtils';
+import LoadingSpinner from './LoadingSpinner';
 
 const logger = createLogger('DailyCheckinModal');
 const { width, height } = Dimensions.get('window');
@@ -43,13 +44,16 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
       
       const data = await dailyCheckinService.getCheckinData(protocolId);
       
-      setQuestions(data.questions || []);
+      // Sort questions by order
+      const sortedQuestions = [...(data.questions || [])].sort((a, b) => a.order - b.order);
+      
+      setQuestions(sortedQuestions);
       setHasCheckinToday(data.hasCheckinToday);
       setResponses(data.existingResponses || {});
       setCurrentQuestionIndex(0);
       
       logger.info('Dados do check-in carregados', { 
-        questionsCount: data.questions?.length || 0,
+        questionsCount: sortedQuestions.length,
         hasCheckinToday: data.hasCheckinToday 
       });
     } catch (error) {
@@ -92,18 +96,30 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
       // Preparar dados para envio
       const submitData = Object.entries(responses).map(([questionId, answer]) => ({
         questionId,
-        answer
+        answer: answer.toString() // Garantir que a resposta seja string
       }));
 
-      logger.debug('Submetendo check-in', { protocolId, responsesCount: submitData.length });
+      logger.debug('Submetendo check-in', { 
+        protocolId, 
+        responsesCount: submitData.length 
+      });
+
       const result = await dailyCheckinService.submitCheckin(protocolId, submitData);
       
-      logger.info('Check-in submetido com sucesso');
-      onComplete?.(result.message || 'Check-in completed successfully!');
-      onClose();
+      if (result.success) {
+        logger.info('Check-in submetido com sucesso', {
+          message: result.message,
+          responsesCount: result.responses?.length
+        });
+        
+        onComplete?.(result.message || 'Check-in completed successfully!');
+        onClose();
+      } else {
+        throw new Error(result.message || 'Failed to submit check-in');
+      }
     } catch (error) {
       logger.error('Erro ao submeter check-in:', error);
-      setError('Failed to submit check-in. Please try again.');
+      setError(error.message || 'Failed to submit check-in. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -120,32 +136,33 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
             value={response}
             onChangeText={(text) => handleResponseChange(question.id, text)}
             placeholder="Type your answer..."
-            placeholderTextColor="#cccccc"
+            placeholderTextColor="#94a3b8"
             multiline
           />
         );
 
       case 'SCALE':
+        const maxScale = question.question.includes('1 = not challenging, 5 = very challenging') ? 5 : 10;
         return (
           <View style={styles.scaleContainer}>
             <Text style={styles.scaleDescription}>
-              {response ? `Selected level: ${response}/10` : 'Select a level from 1 to 10'}
+              {response ? `Selected level: ${response}/${maxScale}` : `Select a level from 1 to ${maxScale}`}
             </Text>
             <View style={styles.scaleLabels}>
-              <Text style={styles.scaleLabelText}>Mild</Text>
-              <Text style={styles.scaleLabelText}>Severe</Text>
+              <Text style={styles.scaleLabelText}>Low</Text>
+              <Text style={styles.scaleLabelText}>High</Text>
             </View>
             <View style={styles.scaleButtonsContainer}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+              {Array.from({ length: maxScale }, (_, i) => i + 1).map((value) => (
                 <TouchableOpacity
                   key={value}
                   style={[
                     styles.scaleButton,
                     response === value.toString() && styles.scaleButtonSelected,
-                    value <= 3 && styles.scaleButtonMild,
-                    value > 3 && value <= 6 && styles.scaleButtonModerate,
-                    value > 6 && value <= 8 && styles.scaleButtonSevere,
-                    value > 8 && styles.scaleButtonVerySevere,
+                    value <= maxScale * 0.3 && styles.scaleButtonMild,
+                    value > maxScale * 0.3 && value <= maxScale * 0.6 && styles.scaleButtonModerate,
+                    value > maxScale * 0.6 && value <= maxScale * 0.8 && styles.scaleButtonSevere,
+                    value > maxScale * 0.8 && styles.scaleButtonVerySevere,
                   ]}
                   onPress={() => handleResponseChange(question.id, value.toString())}
                 >
@@ -185,35 +202,26 @@ const DailyCheckinModal = ({ visible, onClose, protocolId, onComplete }) => {
         );
 
       case 'MULTIPLE_CHOICE':
-        let options = [];
-        try {
-          options = JSON.parse(question.options || '[]');
-        } catch (e) {
-          options = question.options ? question.options.split(',') : [];
-        }
-        
+        const options = question.options ? question.options.split(',').map(opt => opt.trim()) : [];
         return (
           <View style={styles.multipleChoiceContainer}>
-            {options.map((option, index) => {
-              const optionText = typeof option === 'string' ? option.trim() : option;
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.multipleChoiceButton,
-                    response === optionText && styles.multipleChoiceButtonSelected
-                  ]}
-                  onPress={() => handleResponseChange(question.id, optionText)}
-                >
-                  <Text style={[
-                    styles.multipleChoiceButtonText,
-                    response === optionText && styles.multipleChoiceButtonTextSelected
-                  ]}>
-                    {optionText}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {options.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.multipleChoiceButton,
+                  response === option && styles.multipleChoiceButtonSelected
+                ]}
+                onPress={() => handleResponseChange(question.id, option)}
+              >
+                <Text style={[
+                  styles.multipleChoiceButtonText,
+                  response === option && styles.multipleChoiceButtonTextSelected
+                ]}>
+                  {option}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         );
 

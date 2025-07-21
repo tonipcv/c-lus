@@ -7,6 +7,7 @@ import {
   Image,
   Dimensions,
   Platform,
+  SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -25,36 +26,33 @@ const WelcomeScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" />
       
       {/* Main Content */}
       <View style={styles.content}>
-        {/* Logo */}
-        <View style={styles.logoContainer}>
+        {/* Logo and Message */}
+        <View style={styles.chatContainer}>
           <Image 
             source={require('../../assets/logo.png')}
             style={styles.logo}
             resizeMode="contain"
           />
+          
+          <View style={styles.messageContainer}>
+            <View style={styles.messageBubble}>
+              <Text style={styles.messageText}>
+                Welcome to your personalized protocol management platform.
+          </Text>
+            </View>
+            <View style={styles.messageBubble}>
+              <Text style={styles.messageText}>
+                Get started with your treatment journey by logging in or learn more about our services.
+          </Text>
+            </View>
+          </View>
         </View>
 
-        {/* Title */}
-        <Text style={styles.title}>CXLUS</Text>
-        
-        {/* Subtitle */}
-        <Text style={styles.subtitle}>Private Protocol Portal</Text>
-        
-        {/* Description */}
-        <View style={styles.descriptionContainer}>
-          <Text style={styles.description}>
-            CXLUS is a private-access portal used by clients who are invited and managed by professionals for personalized protocol management.
-          </Text>
-          
-          <Text style={styles.description}>
-            You can create an account, but you need a professional associated with CXLUS to activate your account and begin your personalized protocols.
-          </Text>
-        </View>
       </View>
 
       {/* Action Buttons */}
@@ -80,94 +78,107 @@ const WelcomeScreen = () => {
       <View style={styles.footer}>
         <Text style={styles.footerText}>Invitation-only platform</Text>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#000000',
-    paddingHorizontal: 32,
-    paddingTop: Platform.OS === 'ios' ? 80 : 60,
-    paddingBottom: 40,
+    backgroundColor: '#F5F5F5',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'stretch',
+    paddingHorizontal: 24,
   },
-  logoContainer: {
-    marginBottom: 24,
+  chatContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 48,
+    paddingHorizontal: 16,
   },
   logo: {
-    width: 64,
-    height: 64,
+    width: 40,
+    height: 40,
+    marginRight: 12,
+    marginTop: 4,
   },
-  title: {
-    fontSize: 48,
-    fontWeight: '300',
-    color: '#FFFFFF',
-    letterSpacing: 4,
-    marginBottom: 8,
+  messageContainer: {
+    flex: 1,
+    gap: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#888888',
-    marginBottom: 48,
-    fontWeight: '400',
+  messageBubble: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    maxWidth: '90%',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
   },
-  descriptionContainer: {
-    maxWidth: 320,
+    shadowOpacity: 0.05,
+    shadowRadius: 2.22,
+    elevation: 3,
   },
-  description: {
-    fontSize: 16,
-    color: '#CCCCCC',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 20,
-    fontWeight: '300',
+  messageText: {
+    fontSize: 15,
+    color: '#18222A',
+    lineHeight: 22,
+    fontFamily: 'ManropeRegular',
   },
   buttonContainer: {
     width: '100%',
     maxWidth: 280,
     alignSelf: 'center',
     marginBottom: 32,
+    paddingHorizontal: 32,
   },
   primaryButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1697F5',
     paddingVertical: 16,
-    borderRadius: 4,
+    borderRadius: 30,
     alignItems: 'center',
     marginBottom: 16,
+    shadowColor: '#1697F5',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   primaryButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '500',
-    letterSpacing: 0.5,
-  },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#333333',
-    paddingVertical: 16,
-    borderRadius: 4,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '400',
-    letterSpacing: 0.5,
+    fontFamily: 'ManropeSemiBold',
+  },
+  secondaryButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 16,
+    borderRadius: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  secondaryButtonText: {
+    color: '#18222A',
+    fontSize: 16,
+    fontFamily: 'ManropeMedium',
   },
   footer: {
     alignItems: 'center',
+    paddingBottom: 40,
   },
   footerText: {
-    fontSize: 12,
-    color: '#555555',
-    fontWeight: '300',
+    fontSize: 13,
+    color: '#7F8589',
+    fontFamily: 'ManropeLight',
   },
 });
 

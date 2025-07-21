@@ -23,6 +23,7 @@ import indicationService from '../services/indicationService';
 import userService from '../services/userService';
 import { showErrorAlert } from '../utils/errorHandler';
 import { createLogger } from '../utils/logUtils';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const logger = createLogger('DashboardScreen');
 
@@ -293,12 +294,7 @@ const DashboardScreen = ({ navigation }) => {
   );
 
   if (loading && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0088FE" />
-        <Text style={styles.loadingText}>Carregando dashboard...</Text>
-      </View>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

@@ -110,7 +110,7 @@ const NotificationDebugPanel = () => {
         </View>
 
         {loading && (
-          <Text style={styles.loadingText}>⏳ Carregando...</Text>
+          <Text style={styles.loadingText}>⏳</Text>
         )}
 
         {error && (

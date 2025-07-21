@@ -11,20 +11,14 @@ platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 install! 'cocoapods',
   :deterministic_uuids => false
 
-# Configuração para Firebase e módulos Swift
-use_frameworks! :linkage => :static
-use_modular_headers!
-
-# Configurações específicas para o Firebase
-pod 'Firebase', :modular_headers => true
-pod 'FirebaseCore', :modular_headers => true
-pod 'GoogleUtilities', :modular_headers => true
-pod 'FirebaseCoreInternal', :modular_headers => true
-
 prepare_react_native_project!
 
 target 'CXLUS' do
   use_expo_modules!
+
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'FirebaseCoreInternal', :modular_headers => true
+  pod 'FirebaseCore', :modular_headers => true
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];

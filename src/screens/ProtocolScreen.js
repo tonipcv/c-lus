@@ -13,6 +13,7 @@ import {
   Modal,
   Image,
   Alert,
+  TextInput,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -25,6 +26,7 @@ import { getToken, isTokenValid } from '../utils/jwtUtils';
 import DailyCheckinModal from '../components/DailyCheckinModal';
 import SymptomReportModal from '../components/SymptomReportModal';
 import dailyCheckinService from '../services/dailyCheckinService';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const logger = createLogger('ProtocolScreen');
 const { width, height } = Dimensions.get('window');
@@ -57,6 +59,14 @@ const ProtocolScreen = () => {
   const [assignment, setAssignment] = useState(null);
   const [startingProtocol, setStartingProtocol] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [referralModalVisible, setReferralModalVisible] = useState(false);
+  const [referralForm, setReferralForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    notes: ''
+  });
+  const [submittingReferral, setSubmittingReferral] = useState(false);
 
   // Animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -78,6 +88,33 @@ const ProtocolScreen = () => {
     });
     
     return currentDayIndex !== -1 ? currentDayIndex : 0;
+  };
+
+  // Função para calcular o dia atual baseado na data de início
+  const getTodayDayNumber = () => {
+    if (!protocol?.startDate) return 1;
+    
+    const startDate = new Date(protocol.startDate);
+    const today = new Date();
+    
+    // Resetar as horas para comparar apenas as datas
+    startDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    const diffTime = today.getTime() - startDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const todayDayNumber = Math.max(1, diffDays + 1);
+    
+    logger.debug('Calculating today day number:', {
+      startDate: protocol.startDate,
+      startDateObj: startDate.toISOString(),
+      todayObj: today.toISOString(),
+      diffTime,
+      diffDays,
+      todayDayNumber
+    });
+    
+    return todayDayNumber;
   };
 
   const showToast = (message, type = 'success') => {
@@ -105,32 +142,64 @@ const ProtocolScreen = () => {
   const loadCheckinStatus = async () => {
     try {
       setLoadingCheckinStatus(true);
-      if (!protocolId) return;
-      
-      logger.debug('Carregando status do check-in', { protocolId });
-      const data = await dailyCheckinService.getCheckinData(protocolId);
-      setHasCheckinToday(data.hasCheckinToday);
-      
-      logger.info('Status do check-in carregado', { hasCheckinToday: data.hasCheckinToday });
+      logger.debug('Verificando status do check-in');
+
+      // Verificar status do check-in
+      const response = await apiClient.get(`/api/protocols/assignments/${protocolId}/checkin/status`);
+
+      logger.debug('Resposta do status do check-in:', response);
+      setHasCheckinToday(response?.hasCheckinToday || false);
+
+      logger.info('Status do check-in carregado', { hasCheckinToday: response?.hasCheckinToday });
     } catch (error) {
       logger.error('Erro ao carregar status do check-in:', error);
-      // Não mostrar erro para o usuário, apenas log
+      // Não mostrar erro para o usuário pois não é crítico
     } finally {
       setLoadingCheckinStatus(false);
     }
   };
 
-  const handleCheckinComplete = (message) => {
-    showToast(message, 'success');
-    setHasCheckinToday(true);
+  const handleCheckinComplete = async () => {
+    try {
+      logger.debug('Check-in concluído, recarregando dados');
+      
+      // Recarregar protocolo e progresso
+      await loadProtocolDetails();
+      
+      // Recarregar status do check-in
+      await loadCheckinStatus();
+      
+      // Fechar modal
+      setCheckinModalVisible(false);
+      
+      logger.info('Dados atualizados após check-in');
+      showToast('Check-in completed successfully!', 'success');
+    } catch (error) {
+      logger.error('Erro ao atualizar dados após check-in:', error);
+      showToast('Unable to update data after check-in.', 'error');
+    }
   };
 
-  const handleSymptomReportComplete = (message) => {
-    showToast(message, 'success');
+  const handleSymptomReportComplete = async () => {
+    try {
+      logger.debug('Relatório de sintomas concluído, recarregando dados');
+      
+      // Recarregar protocolo e progresso
+      await loadProtocolDetails();
+      
+      // Fechar modal
+      setSymptomReportModalVisible(false);
+      
+      logger.info('Dados atualizados após relatório de sintomas');
+      showToast('Symptom report completed successfully!', 'success');
+    } catch (error) {
+      logger.error('Erro ao atualizar dados após relatório de sintomas:', error);
+      showToast('Unable to update data after symptom report.', 'error');
+    }
   };
 
   const handleStartProtocol = async () => {
-    if (!assignment) {
+    if (!protocol) {
       Alert.alert('Error', 'Protocol not found.');
       return;
     }
@@ -138,29 +207,33 @@ const ProtocolScreen = () => {
     try {
       setStartingProtocol(true);
       logger.debug('Starting protocol', { 
-        assignmentId: assignment.id,
-        startDate: assignment.startDate
+        prescriptionId: protocol.id,
+        startDate: protocol.startDate
       });
 
-      // Use the correct endpoint structure with protocol and prescription IDs
-      const response = await apiClient.post(
-        `/api/protocols/${assignment.protocol.id}/prescriptions/${assignment.id}/start`
-      );
+      // Use the new endpoint structure
+      const response = await apiClient.post(`/api/v2/patients/prescriptions/${protocol.id}/start`);
       
-      if (response) {
+      if (response.success) {
         logger.info('Protocol started successfully', response);
         
         // Update the local protocol data with the response
-        if (response.startDate) {
+        if (response.prescription?.actual_start_date) {
           setProtocol(prevProtocol => ({
             ...prevProtocol,
-            startDate: response.startDate,
+            startDate: response.prescription.actual_start_date,
             status: 'ACTIVE',
             currentDay: 1
           }));
         }
         
-        // Reload the full protocol data
+        // Reload the full protocol data with all necessary information
+        const queryParams = new URLSearchParams({
+          include_days: 'true',
+          include_progress: 'true',
+          include_metrics: 'true'
+        });
+        
         await loadProtocolAssignment();
         
         Alert.alert('Success', 'Protocol started successfully!');
@@ -169,8 +242,8 @@ const ProtocolScreen = () => {
       logger.error('Error starting protocol:', error);
       
       // Handle specific error when protocol is already started
-      if (error.response?.status === 400 && error.response?.data?.startDate) {
-        const startDate = new Date(error.response.data.startDate).toLocaleDateString();
+      if (error.response?.status === 400 && error.response?.data?.actual_start_date) {
+        const startDate = new Date(error.response.data.actual_start_date).toLocaleDateString();
         Alert.alert(
           'Protocol Already Started',
           `This protocol was already started on ${startDate}.`
@@ -179,7 +252,7 @@ const ProtocolScreen = () => {
         // Update local state with the returned start date
         setProtocol(prevProtocol => ({
           ...prevProtocol,
-          startDate: error.response.data.startDate,
+          startDate: error.response.data.actual_start_date,
           status: error.response.data.status || 'ACTIVE',
           currentDay: 1
         }));
@@ -203,8 +276,27 @@ const ProtocolScreen = () => {
   };
 
   const handleStartProtocolConfirm = async () => {
-    setStartProtocolModalVisible(false);
-    await handleStartProtocol();
+    try {
+      setStartingProtocol(true);
+      logger.debug('Iniciando protocolo');
+
+      // Iniciar protocolo
+      await apiClient.post(`/api/protocols/assignments/${protocolId}/start`);
+
+      // Recarregar protocolo e progresso
+      await loadProtocolDetails();
+
+      // Fechar modal
+      setStartProtocolModalVisible(false);
+
+      logger.info('Protocolo iniciado com sucesso');
+      showToast('Protocol started successfully!', 'success');
+    } catch (error) {
+      logger.error('Erro ao iniciar protocolo:', error);
+      showToast('Unable to start protocol. Please try again.', 'error');
+    } finally {
+      setStartingProtocol(false);
+    }
   };
 
   useEffect(() => {
@@ -215,14 +307,21 @@ const ProtocolScreen = () => {
       setLoading(false);
     }
   }, [protocolId]);
-
+      
   // Efeito separado para atualizar o currentDayIndex quando o protocol mudar
   useEffect(() => {
     if (protocol?.protocol?.days) {
       const todayIndex = getCurrentDayIndex(protocol);
-      setCurrentDayIndex(todayIndex);
-    }
+        setCurrentDayIndex(todayIndex);
+      }
   }, [protocol]);
+
+  // Efeito para recarregar o progresso quando o protocolo mudar
+  useEffect(() => {
+    if (protocol?.protocol?.id) {
+      loadProtocolProgress();
+    }
+  }, [protocol?.protocol?.id]);
 
   useEffect(() => {
     if (!loading && protocol) {
@@ -243,52 +342,62 @@ const ProtocolScreen = () => {
 
   const loadProtocolProgress = async () => {
     try {
-      const protocolId = protocol?.protocol?.id;
-      if (!protocolId) {
-        logger.warn('No protocol ID available for loading progress');
+      if (!protocol?.id) {
+        logger.warn('Nenhum ID de protocolo disponível para carregar progresso');
         return;
       }
 
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-      
       logger.debug('Carregando progresso do protocolo', { 
-        protocolId,
-        date: today
+        protocolId: protocol.id
       });
-      
-      const response = await apiClient.get(`/api/protocols/progress?protocolId=${protocolId}&date=${today}`);
-      
-      logger.debug('Progress response:', { 
-        responseData: response,
-        responseLength: response?.length
+
+      // Build query parameters
+      const queryParams = new URLSearchParams({
+        include_progress: 'true'
       });
-      
-      // Organizar progresso por tarefa ID para fácil acesso
-      const progressMap = {};
-      if (response && Array.isArray(response)) {
-        response.forEach(item => {
+
+      // Add date range for progress
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+
+      queryParams.append('start_date', thirtyDaysAgo.toISOString().split('T')[0]);
+      queryParams.append('end_date', today.toISOString().split('T')[0]);
+
+      const response = await apiClient.get(
+        `/api/v2/patients/prescriptions/${protocol.id}?${queryParams.toString()}`
+      );
+
+      if (response.success) {
+        const prescription = response.prescription;
+        const progressMap = {};
+
+        // Map progress data
+        prescription.progress?.forEach(item => {
           if (item.protocolTask?.id) {
             progressMap[item.protocolTask.id] = {
-              ...item,
-              protocolTaskId: item.protocolTask.id,
-              isCompleted: Boolean(item.isCompleted)
+              progressId: item.id,
+              taskId: item.protocolTask.id,
+              isCompleted: item.status === 'COMPLETED',
+              completedAt: item.completedAt,
+              notes: item.notes,
+              dayNumber: item.dayNumber,
+              scheduledDate: item.scheduledDate,
+              status: item.status
             };
           }
         });
 
-        // Atualizar o estado imediatamente
         setProgress(progressMap);
-        
         logger.info('Progresso do protocolo carregado', { 
-          totalItems: response.length,
+          totalItems: prescription.progress?.length || 0,
           completedItems: Object.values(progressMap).filter(p => p.isCompleted).length,
-          progressMap: progressMap
+          progressMap
         });
-      } else {
-        logger.warn('Resposta de progresso inválida', { response });
       }
     } catch (error) {
       logger.error('Erro ao carregar progresso do protocolo:', error);
+      showToast('Não foi possível carregar o progresso.', 'error');
     }
   };
 
@@ -297,49 +406,54 @@ const ProtocolScreen = () => {
       setLoading(true);
       logger.debug('Recarregando detalhes do protocolo');
       
-      // Buscar protocolos atualizados
-      const response = await apiClient.get('/api/protocols/assignments');
-      const updatedProtocol = response.find(p => p.id === protocol?.id);
+      // Buscar protocolo atualizado usando o endpoint correto
+      const updatedProtocol = await apiClient.get(`/api/protocols/assignments/${protocolId}`);
       
       if (updatedProtocol) {
         setProtocol(updatedProtocol);
         
-        // Recalculate today's day index
+        // Recalcular índice do dia atual
         if (updatedProtocol.protocol?.days) {
           const todayIndex = getCurrentDayIndex(updatedProtocol);
           setCurrentDayIndex(todayIndex);
         }
         
-        // Recarregar progresso usando o protocolo atualizado
-        const progressResponse = await apiClient.get(`/api/protocols/prescriptions/${updatedProtocol.id}/progress`);
-        
-        logger.debug('Progress response on reload:', { 
-          responseData: progressResponse,
-          responseLength: progressResponse?.length
-        });
-        
-        // Organizar progresso por tarefa ID para fácil acesso
-        const progressMap = {};
-        if (progressResponse && Array.isArray(progressResponse)) {
-          progressResponse.forEach(item => {
-            if (item.protocolTaskId) {
-              progressMap[item.protocolTaskId] = {
-                ...item,
-                isCompleted: Boolean(item.isCompleted) // Garantir que seja booleano
-              };
-            }
+        // Recarregar progresso usando o endpoint correto
+        if (updatedProtocol.protocolId && updatedProtocol.prescription?.id) {
+          const progressResponse = await apiClient.get(
+            `/api/protocols/${updatedProtocol.protocolId}/prescriptions/${updatedProtocol.prescription.id}/progress`
+          );
+          
+          logger.debug('Progress response on reload:', { 
+            adherenceRate: progressResponse.adherenceRate,
+            completedTasks: progressResponse.completedTasks,
+            totalTasks: progressResponse.totalTasks,
+            currentDay: progressResponse.currentDay,
+            streakDays: progressResponse.streakDays
           });
 
-          // Atualizar o estado imediatamente
+          // Atualizar o estado de progresso mantendo a estrutura existente
+          const progressMap = {};
+          if (updatedProtocol.protocol?.days) {
+            updatedProtocol.protocol.days.forEach(day => {
+              day.sessions?.forEach(session => {
+                session.tasks?.forEach(task => {
+                  progressMap[task.id] = {
+                    taskId: task.id,
+                    isCompleted: false // Valor padrão
+                  };
+                });
+              });
+            });
+          }
+
+          // Atualizar com os dados do progresso
           setProgress(progressMap);
-          
-          logger.info('Progresso recarregado', { 
-            totalItems: progressResponse.length,
-            completedItems: Object.values(progressMap).filter(p => p.isCompleted).length
+
+          logger.info('Protocolo atualizado com sucesso', {
+            hasProgress: Object.keys(progressMap).length > 0
           });
         }
-        
-        logger.info('Protocolo atualizado com sucesso');
       }
     } catch (error) {
       logger.error('Erro ao recarregar protocolo:', error);
@@ -352,17 +466,18 @@ const ProtocolScreen = () => {
   const onRefresh = async () => {
     try {
       setRefreshing(true);
+      logger.debug('Iniciando refresh manual');
       
-      // Primeiro carrega os detalhes do protocolo (que já inclui o progresso)
+      // Recarregar protocolo e progresso
       await loadProtocolDetails();
       
-      // Por último carrega o status do check-in
+      // Recarregar status do check-in
       await loadCheckinStatus();
       
-      logger.info('Refresh completo com sucesso');
+      logger.info('Refresh manual concluído com sucesso');
     } catch (error) {
-      logger.error('Erro durante o refresh:', error);
-      showToast('Erro ao atualizar. Tente novamente.', 'error');
+      logger.error('Erro durante refresh manual:', error);
+      showToast('Unable to refresh data.', 'error');
     } finally {
       setRefreshing(false);
     }
@@ -454,88 +569,30 @@ const ProtocolScreen = () => {
     setCurrentDayIndex(dayIndex);
     setSelectedDay(day);
     
-    if (day?.sessions && day.sessions.length > 0) {
-      // Encontrar a primeira sessão com tarefas
-      const sessionWithTasks = day.sessions.find(session => session?.tasks && session.tasks.length > 0);
-      if (sessionWithTasks) {
-        setCurrentSession(sessionWithTasks);
-        setModalVisible(true);
-      } else {
-        showToast('This day has no available tasks.', 'error');
-      }
-    } else {
-      showToast('This day has no available sessions.', 'error');
-    }
-  };
-
-  const handleSessionComplete = async (task) => {
-    try {
-      setCompletingTask(true);
-      setCompletingTaskId(task.id);
-      
-      const isCurrentlyCompleted = isSessionCompleted(task.id);
-      
-      logger.debug('Alternando status da tarefa', { 
-        taskId: task.id, 
-        currentStatus: isCurrentlyCompleted ? 'completed' : 'pending' 
-      });
-      
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-      
-      const requestData = {
-        protocolTaskId: task.id,
-        date: today,
-        notes: `Task "${task.title}" ${isCurrentlyCompleted ? 'unmarked' : 'completed'} by patient`
-      };
-      
-      logger.debug('Enviando request de progresso:', requestData);
-      
-      const response = await apiClient.post('/api/protocols/progress', requestData);
-      
-      logger.debug('Task completion response:', response);
-      
-      if (response) {
-        // Update local progress state immediately based on response
-        setProgress(prevProgress => ({
-          ...prevProgress,
-          [task.id]: {
-            ...response,
-            protocolTaskId: task.id,
-            isCompleted: Boolean(response.isCompleted)
-          }
-        }));
-        
-        // Show appropriate message based on the response
-        showToast(response.isCompleted ? 'Success!' : 'Task unmarked!', 'success');
-        
-        // Also reload progress to ensure consistency
-        await loadProtocolProgress();
-      }
-      
-    } catch (error) {
-      logger.error('Erro ao alterar status da tarefa:', error);
-      const action = isCurrentlyCompleted ? 'unmark' : 'mark';
-      showToast(`Unable to ${action} the task. Please try again.`, 'error');
-    } finally {
-      setCompletingTask(false);
-      setCompletingTaskId(null);
-    }
+    logger.debug('Day selected:', { 
+      dayNumber: day.dayNumber, 
+      dayTitle: day.title,
+      dayIndex 
+    });
   };
 
   const isSessionCompleted = (taskId) => {
     if (!taskId || !progress) {
-      logger.debug('isSessionCompleted: Missing taskId or progress', { taskId, hasProgress: !!progress });
+      logger.debug('isSessionCompleted: taskId ou progress ausente', { 
+        taskId, 
+        hasProgress: !!progress 
+      });
       return false;
     }
     
     const taskProgress = progress[taskId];
-    const isCompleted = taskProgress?.isCompleted === true;
+    const isCompleted = taskProgress?.status === 'COMPLETED';
     
-    logger.debug('isSessionCompleted check:', {
+    logger.debug('Verificando status da tarefa:', {
       taskId,
-      taskProgress,
+      status: taskProgress?.status,
       isCompleted,
-      progressKeys: Object.keys(progress)
+      progressId: taskProgress?.progressId
     });
     
     return isCompleted;
@@ -553,17 +610,17 @@ const ProtocolScreen = () => {
     if (day?.sessions) {
       day.sessions.forEach(session => {
         if (session?.tasks && session.tasks.length > 0) {
-          tasksBySession[session.id] = {
+        tasksBySession[session.id] = {
             sessionTitle: session.title || '',
-            sessionNumber: session.sessionNumber,
-            tasks: session.tasks.map(task => ({
-              ...task,
+          sessionNumber: session.sessionNumber,
+          tasks: session.tasks.map(task => ({
+            ...task,
               sessionTitle: session.title || '',
-              sessionNumber: session.sessionNumber
-            }))
-          };
-        }
-      });
+            sessionNumber: session.sessionNumber
+          }))
+        };
+      }
+    });
     }
 
     // Get all tasks for progress calculation
@@ -689,7 +746,7 @@ const ProtocolScreen = () => {
                 onPress={() => setModalVisible(false)}
                 style={styles.closeButton}
               >
-                <Icon name="close" size={24} color="#cccccc" />
+                <Icon name="close" size={24} color="#7F8589" />
               </TouchableOpacity>
             </View>
 
@@ -825,151 +882,200 @@ const ProtocolScreen = () => {
     if (!protocol?.protocol?.days) {
       return { percentage: 0, completed: 0, total: 0 };
     }
-
+    
     let totalTasks = 0;
     let completedTasks = 0;
-
+    
     protocol.protocol.days.forEach(day => {
       if (day.sessions) {
         day.sessions.forEach(session => {
-          if (session.tasks) {
-            session.tasks.forEach(task => {
+        if (session.tasks) {
+          session.tasks.forEach(task => {
               totalTasks++;
-              if (progress[task.id]?.completed) {
-                completedTasks++;
-              }
-            });
-          }
-        });
+              // Verificar se a tarefa está marcada como completa no estado progress
+              if (progress[task.id]?.isCompleted === true) {
+              completedTasks++;
+            }
+          });
+        }
+      });
       }
     });
-
+    
+    logger.debug('Calculando progresso geral:', {
+      totalTasks,
+      completedTasks,
+      progressKeys: Object.keys(progress),
+      progressValues: Object.values(progress).map(p => ({ 
+        taskId: p.protocolTaskId, 
+        isCompleted: p.isCompleted 
+      }))
+    });
+    
     const percentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
     return { percentage, completed: completedTasks, total: totalTasks };
   };
 
   const loadProtocolAssignment = async () => {
     try {
-      setLoading(true);
-      logger.debug('Carregando atribuições de protocolo', { protocolId });
-      
-      // Verificar conectividade primeiro
-      const isNetworkConnected = await isConnected();
-      if (!isNetworkConnected) {
-        logger.error('Sem conexão com a internet');
-        throw new Error('Sem conexão com a internet. Verifique sua conexão e tente novamente.');
-      }
+      if (protocolId) {
+        logger.debug('Protocol ID received:', { protocolId });
+        setLoading(true);
 
-      // Verificar autenticação
-      const token = await getToken();
-      if (!token) {
-        logger.error('Token não encontrado');
-        throw new Error('Sessão expirada. Por favor, faça login novamente.');
-      }
-
-      // Verificar validade do token
-      const isValid = await isTokenValid();
-      if (!isValid) {
-        logger.error('Token inválido ou expirado');
-        throw new Error('Sua sessão expirou. Por favor, faça login novamente.');
-      }
-      
-      // Primeiro, buscar todas as atribuições
-      const response = await apiClient.get('/api/protocols/assignments');
-      
-      logger.debug('Resposta da API:', {
-        responseType: typeof response,
-        isArray: Array.isArray(response),
-        length: Array.isArray(response) ? response.length : 'N/A',
-        data: response
-      });
-
-      const assignments = Array.isArray(response) ? response : [];
-      
-      // Encontrar a atribuição específica para este protocolo
-      const currentAssignment = assignments.find(a => a.id === protocolId);
-      
-      if (currentAssignment) {
-        logger.debug('Protocolo encontrado:', {
-          id: currentAssignment.id,
-          status: currentAssignment.status,
-          startDate: currentAssignment.startDate,
-          currentDay: currentAssignment.currentDay
-        });
-        
-        setAssignment(currentAssignment);
-        setProtocol(currentAssignment);
-        
-        // Carregar o progresso do protocolo usando o currentAssignment
-        logger.debug('Carregando progresso com assignment:', { assignmentId: currentAssignment.id });
-        
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        const progressResponse = await apiClient.get(`/api/protocols/progress?protocolId=${currentAssignment.protocol.id}&date=${today}`);
-        
-        logger.debug('Progress response:', { 
-          responseData: progressResponse,
-          responseLength: progressResponse?.length
-        });
-        
-        // Organizar progresso por tarefa ID para fácil acesso
-        const progressMap = {};
-        if (progressResponse && Array.isArray(progressResponse)) {
-          progressResponse.forEach(item => {
-            if (item.protocolTask?.id) {
-              progressMap[item.protocolTask.id] = {
-                ...item,
-                isCompleted: Boolean(item.isCompleted)
-              };
-            }
-          });
-
-          // Atualizar o estado imediatamente
-          setProgress(progressMap);
-          
-          logger.info('Progresso do protocolo carregado', { 
-            totalItems: progressResponse.length,
-            completedItems: Object.values(progressMap).filter(p => p.isCompleted).length,
-            progressMap: progressMap
-          });
-        } else {
-          logger.warn('Resposta de progresso inválida', { response: progressResponse });
+        // Check connectivity first
+        const isNetworkConnected = await isConnected();
+        if (!isNetworkConnected) {
+          logger.error('No internet connection');
+          throw new Error('No internet connection. Please check your connection and try again.');
         }
-        
-        logger.info('Atribuição de protocolo carregada com sucesso', { 
-          assignmentId: currentAssignment.id,
-          status: currentAssignment.status,
-          startDate: currentAssignment.startDate,
-          currentDay: currentAssignment.currentDay
+
+        // Check authentication
+        const token = await getToken();
+        if (!token) {
+          logger.error('Token not found');
+          throw new Error('Session expired. Please login again.');
+        }
+
+        // Check token validity
+        const isValid = await isTokenValid();
+        if (!isValid) {
+          logger.error('Invalid or expired token');
+          throw new Error('Your session has expired. Please login again.');
+        }
+
+        // Build query parameters based on what we need
+        const queryParams = new URLSearchParams({
+          include_days: 'true', // We need days for the protocol structure
+          include_progress: 'true', // We need progress for task completion status
+          include_metrics: 'true', // We need metrics for adherence rate and other stats
         });
-      } else {
-        logger.warn('Atribuição de protocolo não encontrada', { 
+
+        // If we have a selected day, add it to the query
+        if (selectedDay?.dayNumber) {
+          queryParams.append('day', selectedDay.dayNumber.toString());
+        }
+
+        // If we're looking at a specific date range (e.g., for progress)
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+
+        queryParams.append('start_date', thirtyDaysAgo.toISOString().split('T')[0]);
+        queryParams.append('end_date', today.toISOString().split('T')[0]);
+
+        // 1. Fetch protocol data using the optimized endpoint
+        logger.debug('Fetching protocol data with filters', { 
           protocolId,
-          availableAssignments: assignments.map(a => a.id)
+          queryParams: queryParams.toString()
         });
-        Alert.alert('Aviso', 'Protocolo não encontrado ou não atribuído.');
+
+        const response = await apiClient.get(
+          `/api/v2/patients/prescriptions/${protocolId}?${queryParams.toString()}`
+        );
+
+        if (!response.success) {
+          throw new Error('Protocol not found or invalid response');
+        }
+
+        const prescription = response.prescription;
+
+        logger.debug('API Response:', {
+          id: prescription.id,
+          protocolId: prescription.protocol_id,
+          status: prescription.status,
+          currentDay: prescription.current_day,
+          hasProgress: !!prescription.progress?.length,
+          hasMetrics: !!prescription.metrics,
+          daysCount: prescription.protocol?.days?.length
+        });
+
+        // Map the prescription to match the expected format
+        const mappedProtocol = {
+          id: prescription.id,
+          protocol: {
+            id: prescription.protocol_id,
+            name: prescription.protocol.name,
+            description: prescription.protocol.description,
+            duration: prescription.protocol.duration,
+            coverImage: prescription.protocol.cover_image,
+            doctor: prescription.protocol.doctor,
+            days: prescription.protocol.days || []
+          },
+          status: prescription.status,
+          startDate: prescription.actual_start_date,
+          currentDay: prescription.current_day,
+          adherenceRate: prescription.metrics?.adherence_rate || 0,
+          progress: prescription.progress || [],
+          plannedStartDate: prescription.planned_start_date,
+          plannedEndDate: prescription.planned_end_date,
+          actualEndDate: prescription.actual_end_date,
+          pausedAt: prescription.paused_at,
+          pauseReason: prescription.pause_reason,
+          abandonedAt: prescription.abandoned_at,
+          abandonReason: prescription.abandon_reason,
+          metrics: prescription.metrics || {}
+        };
+
+        // Update states with protocol data
+        setProtocol(mappedProtocol);
+
+        // Map progress data if we have days
+        if (mappedProtocol.protocol.days) {
+          const progressMap = {};
+          mappedProtocol.protocol.days.forEach(day => {
+            day.sessions?.forEach(session => {
+              session.tasks?.forEach(task => {
+                const taskProgress = prescription.progress?.find(p => 
+                  p.dayNumber === day.dayNumber && 
+                  p.status === 'COMPLETED'
+                );
+                
+                progressMap[task.id] = {
+                  taskId: task.id,
+                  isCompleted: !!taskProgress,
+                  progressId: taskProgress?.id // Store the progress ID
+                };
+              });
+            });
+          });
+
+          // Update progress state
+          setProgress(progressMap);
+
+          logger.info('Protocol loading completed successfully', {
+            protocolId: mappedProtocol.id,
+            hasProgress: Object.keys(progressMap).length > 0,
+            adherenceRate: mappedProtocol.adherenceRate
+          });
+        }
+
+        // Load check-in status
+        await loadCheckinStatus();
+      } else {
+        logger.warn('No protocol ID provided');
+        Alert.alert('Error', 'No protocol ID provided');
       }
     } catch (error) {
-      logger.error('Erro ao carregar atribuição de protocolo:', {
+      logger.error('Error loading protocol:', {
         error: error.message,
         stack: error.stack,
-        response: error.response?.data,
-        status: error.response?.status
+        response: error.response?.data
       });
       
-      // Determinar mensagem de erro apropriada
-      let errorMessage = 'Não foi possível carregar o protocolo. Tente novamente mais tarde.';
+      // Determine appropriate error message
+      let errorMessage = 'Could not load the protocol. Please try again later.';
       
-      if (error.message.includes('conexão')) {
-        errorMessage = 'Sem conexão com a internet. Verifique sua conexão e tente novamente.';
-      } else if (error.message.includes('sessão')) {
-        errorMessage = 'Sua sessão expirou. Por favor, faça login novamente.';
+      if (error.message.includes('connection')) {
+        errorMessage = 'No internet connection. Please check your connection and try again.';
+      } else if (error.message.includes('session')) {
+        errorMessage = 'Your session has expired. Please login again.';
       } else if (error.response?.status === 404) {
-        errorMessage = 'Protocolo não encontrado.';
+        errorMessage = 'Protocol not found.';
       } else if (error.response?.status === 401) {
-        errorMessage = 'Sessão expirada. Por favor, faça login novamente.';
+        errorMessage = 'Session expired. Please login again.';
       }
       
-      Alert.alert('Erro', errorMessage);
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -979,13 +1085,246 @@ const ProtocolScreen = () => {
     loadProtocolAssignment();
   }, []);
 
+  const handleSubmitReferral = async () => {
+    try {
+      if (!referralForm.name || !referralForm.email) {
+        Alert.alert('Aviso', 'Por favor, preencha o nome e email.');
+        return;
+      }
+
+      if (!protocol?.id) {
+        logger.error('Protocol ID not available for referral', { 
+          hasProtocol: !!protocol,
+          protocolId: protocol?.id 
+        });
+        Alert.alert('Erro', 'Dados do protocolo não disponíveis. Tente novamente.');
+        return;
+      }
+
+      setSubmittingReferral(true);
+      logger.debug('Enviando indicação', { 
+        name: referralForm.name,
+        email: referralForm.email,
+        prescriptionId: protocol.id,
+        protocolData: {
+          id: protocol.id,
+          protocolId: protocol.protocol?.id,
+          name: protocol.protocol?.name
+        }
+      });
+
+      // Use the correct endpoint and data structure
+      const requestData = {
+        prescriptionId: protocol.id,
+        notes: referralForm.notes || 'Indicação feita pelo paciente via app',
+        indicatedPatient: {
+          name: referralForm.name,
+          email: referralForm.email,
+          phone: referralForm.phone || '' // Send empty string instead of null
+        }
+      };
+
+      logger.debug('Request data for referral:', requestData);
+
+      const response = await apiClient.post('/api/v2/patients/referrals', requestData);
+
+      logger.debug('Referral API response:', response);
+
+      if (response.success) {
+        // Fechar modal e limpar form
+        setReferralModalVisible(false);
+        setReferralForm({
+          name: '',
+          email: '',
+          phone: '',
+          notes: ''
+        });
+
+        logger.info('Indicação enviada com sucesso', response);
+        showToast('Referral sent successfully!', 'success');
+      } else {
+        throw new Error(response.message || 'Failed to send referral');
+      }
+    } catch (error) {
+      logger.error('Erro ao enviar indicação:', {
+        error: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        prescriptionId: protocol?.id
+      });
+      
+      let errorMessage = 'Unable to send referral. Please try again.';
+      
+      if (error.response?.status === 400) {
+        errorMessage = error.response.data?.message || 'Invalid data provided.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Session expired. Please login again.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Protocol not found.';
+      } else if (error.response?.status === 422) {
+        errorMessage = error.response.data?.message || 'Validation error.';
+      } else if (error.message.includes('network')) {
+        errorMessage = 'Network error. Please check your connection.';
+      }
+      
+      showToast(errorMessage, 'error');
+    } finally {
+      setSubmittingReferral(false);
+    }
+  };
+
+  const handleTaskComplete = async (taskId, isCompleted) => {
+    try {
+      if (!protocol?.prescription?.id) {
+        logger.warn('Dados insuficientes para completar tarefa', {
+          hasPrescriptionId: !!protocol?.prescription?.id
+        });
+        return;
+      }
+
+      setCompletingTask(true);
+      setCompletingTaskId(taskId);
+
+      logger.debug('Atualizando status da tarefa', { 
+        taskId,
+        isCompleted,
+        prescriptionId: protocol.prescription.id
+      });
+
+      // Atualizar status da tarefa na API
+      await apiClient.post(`/api/protocols/prescriptions/${protocol.prescription.id}/tasks/${taskId}/complete`, {
+        isCompleted
+      });
+
+      // Recarregar progresso
+      await loadProtocolDetails();
+
+      // Atualizar estado local
+      setProgress(prev => ({
+        ...prev,
+        [taskId]: {
+          ...prev[taskId],
+          isCompleted
+        }
+      }));
+
+      logger.info('Tarefa atualizada com sucesso', { 
+        taskId, 
+        isCompleted,
+        hasProgress: true
+      });
+      
+      showToast(isCompleted ? 'Task completed!' : 'Task uncompleted', 'success');
+    } catch (error) {
+      logger.error('Erro ao atualizar tarefa:', error);
+      showToast('Unable to update task status.', 'error');
+    } finally {
+      setCompletingTask(false);
+      setCompletingTaskId(null);
+    }
+  };
+
+  const handleSessionComplete = async (task) => {
+    try {
+      setCompletingTask(true);
+      setCompletingTaskId(task.id);
+
+      const taskProgress = progress[task.id];
+
+      logger.debug('Atualizando status da tarefa', { 
+        taskId: task.id, 
+        currentStatus: taskProgress?.status,
+        dayNumber: selectedDay?.dayNumber || protocol?.currentDay,
+        hasExistingProgress: !!taskProgress?.progressId,
+        taskProgress
+      });
+
+      let response;
+
+      // If we have existing progress with progressId, use toggle
+      if (taskProgress?.progressId) {
+        logger.debug('Usando endpoint toggle para progresso existente', {
+          progressId: taskProgress.progressId,
+          currentStatus: taskProgress.status
+        });
+
+        response = await apiClient.post(
+          `/api/v2/patients/prescriptions/${protocol.id}/progress/${taskProgress.progressId}/toggle`
+        );
+      } else {
+        // Create new progress
+        const today = new Date().toISOString().split('T')[0];
+        const requestData = {
+          dayNumber: selectedDay?.dayNumber || protocol?.currentDay || 1,
+          taskId: task.id,
+          status: 'COMPLETED',
+          notes: `Tarefa "${task.title}" concluída pelo paciente`,
+          scheduledDate: today
+        };
+
+        logger.debug('Criando novo progresso:', requestData);
+
+        response = await apiClient.post(
+          `/api/v2/patients/prescriptions/${protocol.id}/progress`,
+          requestData
+        );
+      }
+
+      logger.debug('Resposta da API:', response);
+
+      if (response.success) {
+        // Update local state with the response
+        const newProgress = response.progress;
+        
+        // Immediately update the local state with the new status
+        setProgress(prevProgress => ({
+          ...prevProgress,
+          [task.id]: {
+            progressId: newProgress.id,
+            taskId: task.id,
+            status: newProgress.status,
+            completedAt: newProgress.completedAt,
+            notes: newProgress.notes,
+            dayNumber: newProgress.dayNumber,
+            scheduledDate: newProgress.scheduledDate,
+            protocolTaskId: newProgress.protocolTaskId
+          }
+        }));
+
+        // Show success message using the API's message
+        showToast(response.message || 'Task status updated!', 'success');
+
+        logger.debug('Estado do progresso atualizado:', {
+          taskId: task.id,
+          newStatus: newProgress.status,
+          progressId: newProgress.id,
+          adherenceRate: response.adherenceRate
+        });
+
+        // Update protocol adherence rate if provided
+        if (response.adherenceRate !== undefined && protocol) {
+          setProtocol(prevProtocol => ({
+            ...prevProtocol,
+            adherenceRate: response.adherenceRate
+          }));
+        }
+      } else {
+        throw new Error('Failed to update task status');
+      }
+    } catch (error) {
+      logger.error('Erro ao atualizar status da tarefa:', error);
+      showToast(
+        error.response?.data?.message || error.message || 'Failed to update task status',
+        'error'
+      );
+    } finally {
+      setCompletingTask(false);
+      setCompletingTaskId(null);
+    }
+  };
+
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#61aed0" />
-        <Text style={styles.loadingText}>Loading protocol...</Text>
-      </View>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!protocol) {
@@ -1005,14 +1344,14 @@ const ProtocolScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" backgroundColor="#151515" />
+      <StatusBar style="light" />
       
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backIconButton}
         >
-          <Icon name="arrow-left" size={24} color="#ffffff" />
+          <Icon name="arrow-left" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         
         <View style={styles.headerInfo}>
@@ -1031,14 +1370,14 @@ const ProtocolScreen = () => {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 80 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#61aed0']}
-            tintColor="#61aed0"
+            colors={['#1697F5']}
+            tintColor="#1697F5"
           />
         }
       >
@@ -1065,7 +1404,7 @@ const ProtocolScreen = () => {
 
             <View style={styles.protocolDetails}>
               <View style={styles.detailRow}>
-                <Icon name="calendar" size={16} color="#666666" />
+                <Icon name="calendar" size={16} color="#FFFFFF" />
                 <Text style={styles.detailText}>
                   {protocol?.status === 'ACTIVE' && protocol?.startDate ? 
                     `Started on ${formatSimpleDate(protocol.startDate)}` :
@@ -1074,13 +1413,34 @@ const ProtocolScreen = () => {
               </View>
               
               <View style={styles.detailRow}>
-                <Icon name="clock" size={16} color="#666666" />
+                <Icon name="clock" size={16} color="#FFFFFF" />
                 <Text style={styles.detailText}>
                   {protocol?.status === 'ACTIVE' ?
                     `Day ${protocol?.currentDay || 1} of ${protocol?.protocol?.duration || 0}` :
                     `Duration: ${protocol?.protocol?.duration || 0} days`}
                 </Text>
               </View>
+
+              {/* Display linked courses if available */}
+              {protocol?.protocol?.courses && protocol.protocol.courses.length > 0 && (
+                <View style={styles.coursesSection}>
+                  <Text style={styles.coursesSectionTitle}>Available Courses</Text>
+                  {protocol.protocol.courses.map((course, index) => (
+                    <TouchableOpacity
+                      key={course.id}
+                      style={styles.courseLink}
+                      onPress={() => navigation.navigate('CourseDetail', { 
+                        courseId: course.id,
+                        courseTitle: course.title
+                      })}
+                    >
+                      <Icon name="play-circle-outline" size={20} color="#FFFFFF" />
+                      <Text style={styles.courseLinkText}>{course.title}</Text>
+                      <Icon name="chevron-right" size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
 
               {/* Add Start Protocol Button when not started */}
               {protocol?.status !== 'ACTIVE' && !protocol?.startDate && (
@@ -1106,7 +1466,7 @@ const ProtocolScreen = () => {
         {/* Protocol Progress Section */}
         <View style={styles.progressSection}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Protocol Progress</Text>
+            <Text style={styles.progressTitle}>Overall Progress</Text>
             <Text style={styles.progressPercentage}>{calculateOverallProgress().percentage}%</Text>
           </View>
           
@@ -1131,7 +1491,7 @@ const ProtocolScreen = () => {
             <View style={styles.progressDetailItem}>
               <Icon name="calendar-clock" size={16} color="#666666" />
               <Text style={styles.progressDetailText}>
-                Day {protocol?.currentDay || 1} of {protocol?.protocol?.duration || 0}
+                Day {getTodayDayNumber()} of {protocol?.protocol?.duration || 0}
               </Text>
             </View>
           </View>
@@ -1150,94 +1510,241 @@ const ProtocolScreen = () => {
             <Icon 
               name={hasCheckinToday ? "check-circle" : "clipboard-text-outline"} 
               size={20} 
-              color={hasCheckinToday ? "#4ade80" : "#61aed0"} 
+              color={hasCheckinToday ? "#1697F5" : "#FFFFFF"} 
             />
             <Text style={[
               styles.checkinButtonText,
               hasCheckinToday && styles.checkinButtonTextCompleted
             ]}>
-              {loadingCheckinStatus ? 'Loading...' : 
-               hasCheckinToday ? 'Check-in Completed ✓' : 'Daily Check-in'}
+              {hasCheckinToday ? 'Check-in Completed ✓' : 'Daily Check-in'}
             </Text>
           </View>
           {!hasCheckinToday && (
-            <Icon name="chevron-right" size={20} color="#61aed0" />
+            <Icon name="chevron-right" size={20} color="#FFFFFF" />
           )}
         </TouchableOpacity>
 
         <View style={styles.daysSection}>
-          <Text style={styles.sectionTitle}>Protocol Schedule</Text>
+          <Text style={styles.sectionTitle}>Tasks</Text>
           
-          {/* Days Navigation */}
+          {/* Days Navigation - Smaller and Discreet */}
           {protocol?.protocol?.days && protocol.protocol.days.length > 0 && (
-            <>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                style={styles.daysNavigation}
-              >
-                {protocol.protocol.days.map((day, index) => (
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.daysScrollContainer}
+            >
+              {protocol.protocol.days.map((day, index) => {
+                const isToday = day.dayNumber === getTodayDayNumber();
+                const isSelected = selectedDay ? selectedDay.dayNumber === day.dayNumber : isToday;
+                
+                return (
                   <TouchableOpacity
-                    key={day.id}
+                    key={day.dayNumber}
                     style={[
-                      styles.dayNavButton,
-                      currentDayIndex === index && styles.dayNavButtonActive
+                      styles.dayCard,
+                      isSelected && styles.dayCardSelected,
+                      isToday && styles.dayCardToday
                     ]}
-                    onPress={() => setCurrentDayIndex(index)}
+                    onPress={() => handleDayPress(day)}
                   >
                     <Text style={[
-                      styles.dayNavButtonText,
-                      currentDayIndex === index && styles.dayNavButtonTextActive
+                      styles.dayNumber,
+                      isSelected && styles.dayNumberSelected,
+                      isToday && styles.dayNumberToday
                     ]}>
-                      Day {day.dayNumber}
+                      {day.dayNumber}
+                    </Text>
+                    <Text style={[
+                      styles.dayLabel,
+                      isSelected && styles.dayLabelSelected,
+                      isToday && styles.dayLabelToday
+                    ]}>
+                      {isToday ? 'Today' : ''}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {/* Today's Day Fixed View */}
-              <View style={styles.currentDaySection}>
-                <View style={styles.todayHeader}>
-                  <Text style={styles.todayTitle}>
-                    Day {protocol?.protocol?.days[currentDayIndex]?.dayNumber || 1}
-                  </Text>
-                  <Text style={styles.todayDate}>
-                    {protocol?.startDate ? 
-                      formatDate(protocol, protocol.protocol.days[currentDayIndex]?.dayNumber) :
-                      'Not started yet'}
-                  </Text>
-                  <Text style={styles.todaySubtitle}>
-                    {protocol?.startDate ? 
-                      `(Based on start date: ${formatSimpleDate(protocol.startDate)})` :
-                      '(Protocol not started yet)'}
-                  </Text>
-                </View>
+                );
+              })}
+            </ScrollView>
+          )}
+          
+          {/* Selected Day View */}
+          {protocol?.protocol?.days && protocol.protocol.days.length > 0 && (
+            <View style={styles.currentDaySection}>
+              {(() => {
+                const dayToShow = selectedDay || protocol.protocol.days.find(day => day.dayNumber === getTodayDayNumber());
                 
-                {protocol?.protocol?.days[currentDayIndex] && renderExpandedDayView(protocol.protocol.days[currentDayIndex])}
-              </View>
-            </>
+                if (!dayToShow) {
+                  return (
+                    <View style={styles.noTasksContainer}>
+                      <Icon name="calendar-blank" size={48} color="#94a3b8" />
+                      <Text style={styles.noTasksText}>No tasks available</Text>
+                    </View>
+                  );
+                }
+                
+                const isToday = dayToShow.dayNumber === getTodayDayNumber();
+                
+                return (
+                  <>
+                    <View style={styles.todayHeader}>
+                      <Text style={styles.todayTitle}>
+                        Day {dayToShow.dayNumber}
+                      </Text>
+                      <Text style={styles.todayDate}>
+                        {protocol?.startDate ? 
+                          formatDate(protocol, dayToShow.dayNumber) :
+                          'Not started yet'}
+                      </Text>
+                      {isToday && (
+                        <Text style={styles.todaySubtitle}>
+                          {protocol?.startDate ? 
+                            `(Based on start date: ${formatSimpleDate(protocol.startDate)})` :
+                            '(Protocol not started yet)'}
+                        </Text>
+                      )}
+                    </View>
+                    
+                    {renderExpandedDayView(dayToShow)}
+                  </>
+                );
+              })()}
+            </View>
           )}
         </View>
+      </ScrollView>
 
-        {/* Symptom Report Button at the end */}
-        <View style={styles.symptomReportSection}>
+      {/* Floating Bottom Navigation */}
+      <View style={styles.floatingNavContainer}>
+        <View style={styles.floatingNav}>
           <TouchableOpacity
-            style={styles.symptomReportButton}
+            style={styles.floatingNavButton}
             onPress={() => setSymptomReportModalVisible(true)}
           >
-            <View style={styles.symptomReportButtonContent}>
-              <Icon 
-                name="medical-bag" 
-                size={18} 
-                color="#cccccc" 
-              />
-              <Text style={styles.symptomReportButtonText}>
-                Report Symptoms
-              </Text>
-            </View>
+            <Icon name="medical-bag" size={22} color="#ffffff" />
+          </TouchableOpacity>
+
+          <View style={styles.navDivider} />
+
+          <TouchableOpacity
+            style={styles.floatingNavButton}
+            onPress={() => navigation.navigate('Courses', { 
+              protocolId: protocol?.protocol?.id,
+              protocolName: protocol?.protocol?.name
+            })}
+          >
+            <Icon name="book-open-variant" size={22} color="#ffffff" />
+          </TouchableOpacity>
+
+          <View style={styles.navDivider} />
+
+          <TouchableOpacity
+            style={styles.floatingNavButton}
+            onPress={() => setReferralModalVisible(true)}
+          >
+            <Icon name="account-multiple-plus" size={22} color="#ffffff" />
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
+
+      {/* Referral Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={referralModalVisible}
+        onRequestClose={() => setReferralModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.referralModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Refer Someone</Text>
+              <TouchableOpacity
+                onPress={() => setReferralModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Icon name="close" size={24} color="#7F8589" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.referralModalBody}>
+              <Text style={styles.referralModalDescription}>
+                Help someone by recommending this protocol. We'll send them an invitation.
+              </Text>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Name *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter their name"
+                  placeholderTextColor="#94a3b8"
+                  value={referralForm.name}
+                  onChangeText={(text) => setReferralForm(prev => ({ ...prev, name: text }))}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Email *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter their email"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={referralForm.email}
+                  onChangeText={(text) => setReferralForm(prev => ({ ...prev, email: text }))}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Phone (optional)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter their phone number"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="phone-pad"
+                  value={referralForm.phone}
+                  onChangeText={(text) => setReferralForm(prev => ({ ...prev, phone: text }))}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Notes (optional)</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  placeholder="Add a personal note"
+                  placeholderTextColor="#94a3b8"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  value={referralForm.notes}
+                  onChangeText={(text) => setReferralForm(prev => ({ ...prev, notes: text }))}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setReferralModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.submitButton, submittingReferral && styles.submitButtonDisabled]}
+                onPress={handleSubmitReferral}
+                disabled={submittingReferral}
+              >
+                {submittingReferral ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Send Invitation</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {renderSessionModal()}
       
@@ -1302,7 +1809,7 @@ const ProtocolScreen = () => {
                 onPress={() => setStartProtocolModalVisible(false)}
                 style={styles.closeButton}
               >
-                <Icon name="close" size={24} color="#cccccc" />
+                <Icon name="close" size={24} color="#7F8589" />
               </TouchableOpacity>
             </View>
 
@@ -1367,35 +1874,36 @@ const ProtocolScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#151515',
+    backgroundColor: '#16171b',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#151515',
+    backgroundColor: '#16171b',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#cccccc',
+    color: '#94a3b8',
+    fontFamily: 'ManropeRegular',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#151515',
+    backgroundColor: '#16171b',
     paddingHorizontal: 40,
   },
   errorTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
     marginTop: 16,
     marginBottom: 24,
+    fontFamily: 'ManropeSemiBold',
   },
   backButton: {
-    backgroundColor: '#61aed0',
+    backgroundColor: '#1697F5',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -1403,7 +1911,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'ManropeSemiBold',
   },
   header: {
     flexDirection: 'row',
@@ -1411,9 +1919,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 20,
-    backgroundColor: '#151515',
+    backgroundColor: '#16171b',
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: '#1d1e24',
   },
   backIconButton: {
     padding: 8,
@@ -1425,13 +1933,14 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
+    fontFamily: 'ManropeSemiBold',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
     marginTop: 2,
+    fontFamily: 'ManropeRegular',
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -1447,39 +1956,38 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   protocolInfo: {
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#26272c',
     margin: 20,
     borderRadius: 12,
-    shadowColor: '#000000',
+    shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 5,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#202020',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   protocolImage: {
     width: '100%',
     height: 200,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
   },
   protocolContent: {
     padding: 16,
   },
   protocolDescription: {
     fontSize: 16,
-    color: '#cccccc',
+    color: '#f1f5f9',
     lineHeight: 24,
     marginBottom: 16,
+    fontFamily: 'ManropeRegular',
   },
   protocolDetails: {
     borderTopWidth: 1,
-    borderTopColor: '#252525',
+    borderTopColor: '#334155',
     paddingTop: 16,
   },
   detailRow: {
@@ -1489,8 +1997,9 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#cbd5e1',
     marginLeft: 8,
+    fontFamily: 'ManropeRegular',
   },
   daysSection: {
     paddingHorizontal: 20,
@@ -1498,17 +2007,17 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
     marginBottom: 16,
+    fontFamily: 'ManropeSemiBold',
   },
   currentDaySection: {
     padding: 16,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#26272c',
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#202020',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   todayHeader: {
     flexDirection: 'column',
@@ -1516,22 +2025,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: '#334155',
   },
   todayTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
+    color: '#f8fafc',
     marginBottom: 4,
+    fontFamily: 'ManropeBold',
   },
   todayDate: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
+    fontFamily: 'ManropeRegular',
   },
   todaySubtitle: {
     fontSize: 12,
-    color: '#cccccc',
+    color: '#94a3b8',
     marginTop: 4,
+    fontFamily: 'ManropeRegular',
   },
   expandedDayHeader: {
     flexDirection: 'row',
@@ -1542,15 +2053,15 @@ const styles = StyleSheet.create({
   expandedDayTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
   },
   expandedDayProgress: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
   },
   expandedDayDescription: {
     fontSize: 16,
-    color: '#cccccc',
+    color: '#cbd5e1',
     lineHeight: 24,
     marginBottom: 16,
   },
@@ -1559,7 +2070,7 @@ const styles = StyleSheet.create({
   },
   expandedProgressBackground: {
     height: 4,
-    backgroundColor: '#252525',
+    backgroundColor: '#334155',
     borderRadius: 2,
   },
   expandedProgressFill: {
@@ -1571,22 +2082,22 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   expandedTasksTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 8,
+    fontSize: 18,
+    color: '#1697F5',
+    marginBottom: 16,
+    fontFamily: 'ManropeSemiBold',
   },
   expandedTaskItem: {
     padding: 12,
     borderWidth: 1,
-    borderColor: '#202020',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 8,
     marginBottom: 8,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#1d1e24',
   },
   expandedTaskItemCompleted: {
-    backgroundColor: '#1a2e25',
-    borderColor: '#7dd3b0',
+    backgroundColor: '#1e3a2e',
+    borderColor: '#4ade80',
   },
   expandedTaskContent: {
     flexDirection: 'row',
@@ -1599,41 +2110,41 @@ const styles = StyleSheet.create({
   expandedTaskTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
   },
   expandedTaskTitleCompleted: {
-    color: '#7dd3b0',
+    color: '#4ade80',
   },
   expandedTaskSession: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
   },
   expandedTaskDescription: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#cbd5e1',
     marginTop: 2,
   },
   expandedTaskDescriptionCompleted: {
-    color: '#7dd3b0',
+    color: '#4ade80',
   },
   expandedTaskStatus: {
     marginLeft: 12,
   },
   checkinButton: {
+    backgroundColor: '#26272c',
+    margin: 20,
+    marginTop: 0,
+    borderRadius: 12,
+    padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#0a0a0a',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#202020',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   checkinButtonCompleted: {
-    backgroundColor: '#1a2e25',
-    borderColor: '#7dd3b0',
+    backgroundColor: '#1e3a2e',
+    borderColor: '#4ade80',
   },
   checkinButtonContent: {
     flexDirection: 'row',
@@ -1641,12 +2152,12 @@ const styles = StyleSheet.create({
   },
   checkinButtonText: {
     fontSize: 16,
-    color: '#61aed0',
-    fontWeight: '600',
-    marginLeft: 12,
+    color: '#FFFFFF',
+    marginLeft: 8,
+    fontFamily: 'ManropeMedium',
   },
   checkinButtonTextCompleted: {
-    color: '#7dd3b0',
+    color: '#4ade80',
   },
   // Modal styles
   modalOverlay: {
@@ -1656,10 +2167,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#151515',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: '#26272c',
+    borderRadius: 16,
     maxHeight: height * 0.8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1667,13 +2179,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: '#1d1e24',
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
     flex: 1,
+    fontFamily: 'ManropeSemiBold',
   },
   closeButton: {
     padding: 4,
@@ -1684,44 +2196,46 @@ const styles = StyleSheet.create({
   },
   sessionTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#1697F5',
     marginBottom: 12,
+    fontFamily: 'ManropeSemiBold',
   },
   sessionDescription: {
     fontSize: 16,
-    color: '#cccccc',
+    color: '#cbd5e1',
     lineHeight: 24,
     marginBottom: 16,
+    fontFamily: 'ManropeRegular',
   },
   sessionNavigation: {
     marginBottom: 16,
   },
   sessionNavigationTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#1697F5',
     marginBottom: 8,
+    fontFamily: 'ManropeMedium',
   },
   sessionNavButton: {
-    padding: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#252525',
     borderRadius: 8,
-    backgroundColor: '#151515',
+    backgroundColor: '#1d1e24',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   sessionNavButtonActive: {
-    backgroundColor: '#1a3a5a',
-    borderColor: '#61aed0',
+    backgroundColor: '#1697F5',
   },
   sessionNavButtonText: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#cbd5e1',
+    fontFamily: 'ManropeRegular',
   },
   sessionNavButtonTextActive: {
-    color: '#61aed0',
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'ManropeMedium',
   },
   tasksSection: {
     marginBottom: 16,
@@ -1729,16 +2243,16 @@ const styles = StyleSheet.create({
   tasksSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
     marginBottom: 8,
   },
   taskCard: {
-    backgroundColor: '#151515',
+    backgroundColor: '#1d1e24',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#252525',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   taskHeader: {
     flexDirection: 'row',
@@ -1752,14 +2266,14 @@ const styles = StyleSheet.create({
   taskTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
   },
   taskTitleCompleted: {
     color: '#4ade80',
   },
   taskDescription: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#cbd5e1',
     marginTop: 2,
   },
   taskDescriptionCompleted: {
@@ -1773,11 +2287,11 @@ const styles = StyleSheet.create({
   },
   taskCompletedText: {
     fontSize: 14,
-    color: '#7dd3b0',
+    color: '#4ade80',
   },
   taskNotes: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#cbd5e1',
     marginTop: 4,
   },
   taskDetail: {
@@ -1787,7 +2301,7 @@ const styles = StyleSheet.create({
   },
   taskDetailText: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#cbd5e1',
     marginLeft: 8,
   },
   completeTaskButton: {
@@ -1795,8 +2309,13 @@ const styles = StyleSheet.create({
   },
   noTasksText: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
     textAlign: 'center',
+  },
+  noTasksContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
   },
   toast: {
     position: 'absolute',
@@ -1813,7 +2332,7 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.15,
     shadowRadius: 3.84,
     elevation: 5,
     zIndex: 1000,
@@ -1826,43 +2345,77 @@ const styles = StyleSheet.create({
   },
   toastText: {
     fontSize: 14,
-    fontWeight: '500',
     color: '#FFFFFF',
     marginLeft: 8,
     flex: 1,
+    fontFamily: 'ManropeMedium',
   },
   symptomReportButton: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#0a0a0a',
-    borderWidth: 1,
-    borderColor: '#202020',
-    borderRadius: 8,
+    display: 'none',
   },
   symptomReportButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    display: 'none',
   },
   symptomReportButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#cccccc',
-    marginLeft: 8,
+    display: 'none',
   },
   symptomReportSection: {
-    padding: 20,
-    backgroundColor: 'transparent',
+    display: 'none',
   },
   sessionGroup: {
     marginBottom: 16,
   },
   sessionCategoryHeader: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#61aed0',
+    color: '#1697F5',
     marginBottom: 8,
+    fontFamily: 'ManropeSemiBold',
+  },
+  daysScrollContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  dayCard: {
+    backgroundColor: '#26272c',
+    borderRadius: 8,
+    padding: 8,
+    marginRight: 8,
+    minWidth: 50,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  dayCardSelected: {
+    backgroundColor: '#1697F5',
+    borderColor: '#1697F5',
+  },
+  dayCardToday: {
+    backgroundColor: '#1e293b',
+    borderColor: '#1697F5',
+    borderWidth: 2,
+  },
+  dayNumber: {
+    fontSize: 16,
+    color: '#f1f5f9',
+    fontFamily: 'ManropeBold',
+    marginBottom: 2,
+  },
+  dayNumberSelected: {
+    color: '#FFFFFF',
+  },
+  dayNumberToday: {
+    color: '#1697F5',
+  },
+  dayLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontFamily: 'ManropeRegular',
+  },
+  dayLabelSelected: {
+    color: '#FFFFFF',
+  },
+  dayLabelToday: {
+    color: '#1697F5',
   },
   daysNavigation: {
     marginBottom: 16,
@@ -1871,31 +2424,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#202020',
     borderRadius: 8,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#334155',
   },
   dayNavButtonActive: {
-    backgroundColor: '#1a3a5a',
-    borderColor: '#61aed0',
+    backgroundColor: '#1697F5',
   },
   dayNavButtonText: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#cbd5e1',
+    fontFamily: 'ManropeRegular',
   },
   dayNavButtonTextActive: {
-    color: '#61aed0',
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: 'ManropeMedium',
   },
+  // Progress section styles
   progressSection: {
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#26272c',
     margin: 20,
     marginTop: 0,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#202020',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   progressHeader: {
     flexDirection: 'row',
@@ -1905,26 +2457,26 @@ const styles = StyleSheet.create({
   },
   progressTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
+    fontFamily: 'ManropeSemiBold',
   },
   progressPercentage: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
+    fontFamily: 'ManropeSemiBold',
   },
   progressBarContainer: {
     marginBottom: 16,
   },
   progressBarBackground: {
     height: 4,
-    backgroundColor: '#252525',
+    backgroundColor: '#334155',
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#61aed0',
+    backgroundColor: '#1697F5',
     borderRadius: 2,
   },
   progressDetails: {
@@ -1937,23 +2489,24 @@ const styles = StyleSheet.create({
   },
   progressDetailText: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
+    fontFamily: 'ManropeRegular',
   },
   logoContainer: {
-    backgroundColor: '#151515',
-    padding: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#202020',
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Removido backgroundColor e borderRadius para deixar transparente
   },
   logo: {
-    width: 24,
-    height: 24,
+    width: 32,
+    height: 32,
   },
   startProtocolButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#61aed0',
+    backgroundColor: '#1697F5',
     padding: 12,
     borderRadius: 8,
     marginTop: 16,
@@ -1962,22 +2515,22 @@ const styles = StyleSheet.create({
   startProtocolButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
     marginLeft: 8,
+    fontFamily: 'ManropeSemiBold',
   },
   confirmModalContent: {
-    backgroundColor: '#151515',
+    backgroundColor: '#26272c',
     borderRadius: 16,
     width: '90%',
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: '#202020',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.15,
     shadowRadius: 3.84,
     elevation: 5,
   },
@@ -1987,12 +2540,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: '#1d1e24',
   },
   confirmModalTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
+    fontFamily: 'ManropeSemiBold',
   },
   confirmModalBody: {
     padding: 20,
@@ -2002,17 +2555,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   confirmModalText: {
-    fontSize: 16,
-    color: '#ffffff',
+    fontSize: 14,
+    color: '#94a3b8',
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 12,
+    lineHeight: 20,
+    marginBottom: 20,
+    fontFamily: 'ManropeRegular',
   },
   confirmModalSubtext: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 20,
+    fontFamily: 'ManropeRegular',
   },
   confirmModalFooter: {
     flexDirection: 'row',
@@ -2025,23 +2580,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#252525',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#1d1e24',
   },
   cancelButtonText: {
-    color: '#cccccc',
+    color: '#cbd5e1',
     fontSize: 16,
-    fontWeight: '500',
+    fontFamily: 'ManropeMedium',
   },
   confirmButton: {
-    backgroundColor: '#61aed0',
+    backgroundColor: '#1697F5',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
   },
   confirmButtonText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '500',
+    fontFamily: 'ManropeMedium',
   },
   modalContainer: {
     position: 'absolute',
@@ -2054,20 +2610,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#151515',
+    backgroundColor: '#26272c',
     padding: 20,
     borderRadius: 8,
     width: '80%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 15,
+    color: '#f8fafc',
   },
   modalText: {
     fontSize: 16,
     marginBottom: 20,
-    color: '#666',
+    color: '#cbd5e1',
   },
   modalButtons: {
     flexDirection: 'row',
@@ -2078,15 +2637,168 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginLeft: 10,
   },
-  cancelButton: {
-    backgroundColor: '#ff3b30',
+  coursesSection: {
+    marginTop: 16,
   },
-  confirmButton: {
-    backgroundColor: '#007AFF',
-  },
-  modalButtonText: {
-    color: '#fff',
+  coursesSectionTitle: {
     fontSize: 16,
+    color: '#f8fafc',
+    marginBottom: 12,
+    fontFamily: 'ManropeSemiBold',
+  },
+  courseLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1d1e24',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  courseLinkText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#f1f5f9',
+    marginLeft: 8,
+    fontFamily: 'ManropeRegular',
+  },
+  loadingLogo: {
+    width: 60,
+    height: 60,
+    marginBottom: 16,
+  },
+  loadingSpinner: {
+    transform: [{ scale: 0.8 }],
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#f8fafc',
+    backgroundColor: '#1d1e24',
+    fontFamily: 'ManropeRegular',
+  },
+  categoryOption: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    backgroundColor: '#1d1e24',
+  },
+  deleteButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#1d1e24',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+  },
+  referralButton: {
+    display: 'none',
+  },
+  referralButtonContent: {
+    display: 'none',
+  },
+  referralButtonText: {
+    display: 'none',
+  },
+  referralModalContent: {
+    backgroundColor: '#26272c',
+    borderRadius: 16,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  referralModalBody: {
+    padding: 20,
+  },
+  referralModalDescription: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginBottom: 20,
+    fontFamily: 'ManropeRegular',
+    lineHeight: 20,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#f1f5f9',
+    marginBottom: 8,
+    fontFamily: 'ManropeMedium',
+  },
+  textArea: {
+    height: 100,
+    paddingTop: 12,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#1d1e24',
+    gap: 12,
+  },
+  submitButton: {
+    backgroundColor: '#1697F5',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    minWidth: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'ManropeMedium',
+  },
+  floatingNavContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+  },
+  floatingNav: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(22, 23, 27, 0.85)', // Mais escuro e transparente
+    borderRadius: 50,
+    paddingVertical: 8, // Reduzido por não ter mais texto
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 222, 128, 0.1)', // Borda mais sutil
+  },
+  floatingNavButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  navDivider: {
+    width: 1,
+    height: '40%', // Reduzido para ficar mais sutil
+    backgroundColor: 'rgba(74, 222, 128, 0.1)', // Mais transparente
+    alignSelf: 'center',
   },
 });
 

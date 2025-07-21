@@ -22,6 +22,8 @@ import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
 import { createLogger } from '../utils/logUtils';
 import { AuthError } from '../utils/errorHandler';
+import LoadingSpinner from '../components/LoadingSpinner';
+import habitService from '../services/habitService';
 
 const logger = createLogger('HomeScreen');
 const { width, height } = Dimensions.get('window');
@@ -35,6 +37,7 @@ const HomeScreen = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [startProtocolModal, setStartProtocolModal] = useState(false);
   const [selectedProtocol, setSelectedProtocol] = useState(null);
+  const [habits, setHabits] = useState([]);
   
   // Animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -44,6 +47,7 @@ const HomeScreen = () => {
     if (isAuthenticated) {
       loadProtocols();
       loadUserProfile();
+      loadHabits();
     } else {
       navigation.replace('Login');
     }
@@ -85,30 +89,48 @@ const HomeScreen = () => {
   const loadProtocols = async () => {
     try {
       setLoading(true);
-      logger.debug('Carregando protocolos do paciente');
+      logger.debug('Loading patient prescriptions');
       
-      const response = await apiClient.get('/api/protocols/assignments');
-      // A API retorna um array diretamente, não dentro de uma propriedade assignments
-      const protocolsArray = Array.isArray(response) ? response : [];
+      const response = await apiClient.get('/api/v2/patients/prescriptions');
       
-      // Debug log para ver a estrutura dos protocolos
-      logger.debug('Protocolos carregados:', protocolsArray.map(p => ({
-        id: p.id,
-        name: p.protocol?.name,
-        status: p.status,
-        prescriptionStatus: p.prescription?.status,
-        hasStartDate: !!p.prescription?.startDate
-      })));
-      
-      setProtocols(protocolsArray);
-      logger.info(`${protocolsArray.length} protocolos carregados`);
-      
+      if (response.success) {
+        // Map the prescriptions to match the expected format
+        const mappedProtocols = response.prescriptions.map(prescription => ({
+          id: prescription.id,
+          protocol: {
+            id: prescription.protocol_id,
+            name: prescription.protocol.name,
+            description: prescription.protocol.description,
+            duration: prescription.protocol.duration,
+            coverImage: prescription.protocol.cover_image,
+            doctor: prescription.protocol.doctor
+          },
+          status: prescription.status,
+          startDate: prescription.actual_start_date,
+          currentDay: prescription.current_day,
+          adherenceRate: prescription.adherence_rate,
+          progress: prescription.progress
+        }));
+
+        logger.debug('Protocols loaded:', mappedProtocols.map(p => ({
+          id: p.id,
+          name: p.protocol?.name,
+          status: p.status,
+          startDate: p.startDate
+        })));
+        
+        setProtocols(mappedProtocols);
+        logger.info(`${mappedProtocols.length} protocols loaded`);
+        
+      } else {
+        logger.warn('Failed to load protocols:', response.message);
+        setProtocols([]);
+      }
     } catch (error) {
-      logger.error('Erro ao carregar protocolos:', error);
+      logger.error('Error loading protocols:', error);
       if (error instanceof AuthError) {
         handleSessionExpired();
       }
-      // Não mostrar alert, apenas definir protocolos como vazio
       setProtocols([]);
     } finally {
       setLoading(false);
@@ -116,10 +138,42 @@ const HomeScreen = () => {
     }
   };
 
+  const loadHabits = async () => {
+    try {
+      const currentDate = new Date();
+      const month = currentDate.toISOString();
+      const habitsData = await habitService.getHabits(month);
+      setHabits(habitsData);
+    } catch (error) {
+      logger.error('Erro ao carregar hábitos:', error);
+      setHabits([]);
+    }
+  };
+
+  const getPendingTasks = () => {
+    const activeTasks = protocols
+      .filter(p => p.status === 'ACTIVE')
+      .reduce((tasks, protocol) => {
+        const protocolTasks = protocol.protocol.tasks || [];
+        return [...tasks, ...protocolTasks.filter(task => !task.completed)];
+      }, []);
+    return activeTasks.slice(0, 3);
+  };
+
+  const getPendingHabits = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return habits
+      .filter(habit => !habit.progress.some(p => p.date === today && p.isChecked))
+      .slice(0, 3);
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadProtocols();
-    await loadUserProfile();
+    await Promise.all([
+      loadProtocols(),
+      loadUserProfile(),
+      loadHabits()
+    ]);
     setRefreshing(false);
   };
 
@@ -177,7 +231,7 @@ const HomeScreen = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'ACTIVE': return '#4ade80';
-      case 'PRESCRIBED': return '#61aed0';
+      case 'PRESCRIBED': return '#1697F5';
       case 'PAUSED': return '#f59e0b';
       case 'COMPLETED': return '#4ade80';
       case 'ABANDONED': return '#EF4444';
@@ -414,55 +468,36 @@ const HomeScreen = () => {
         />
         
         <View style={styles.protocolContent}>
-          <View style={styles.protocolHeader}>
-            <View style={styles.protocolInfo}>
-              <Text style={styles.protocolTitle}>{protocolData.name}</Text>
-              <Text style={styles.protocolDescription} numberOfLines={2}>
-                {protocolData.description}
-              </Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(protocol.status) }]}>
-              <Text style={styles.statusText}>{getStatusText(protocol.status)}</Text>
-            </View>
+        <View style={styles.protocolHeader}>
+          <View style={styles.protocolInfo}>
+            <Text style={styles.protocolTitle}>{protocolData.name}</Text>
+            <Text style={styles.protocolDescription} numberOfLines={2}>
+              {protocolData.description}
+            </Text>
           </View>
-
-          <View style={styles.protocolDetails}>
-            <View style={styles.detailRow}>
-              <Icon name="calendar" size={16} color="#cccccc" />
-              <Text style={styles.detailText}>
-                {protocol.status === 'ACTIVE' || protocol.actualStartDate ? 
-                  `${formatDate(protocol.actualStartDate)} - ${formatDate(protocol.endDate)}` :
-                  isAvailable ? 'Available to start now' : `Available from ${formatDate(protocolData.availableFrom)}`
-                }
-              </Text>
-            </View>
-            
-            <View style={styles.detailRow}>
-              <Icon name="clock" size={16} color="#cccccc" />
-              <Text style={styles.detailText}>
-                {protocolData.duration} days
-                {isActive && protocol?.currentDay && 
-                  ` • Current day: ${protocol.currentDay}`}
-              </Text>
-            </View>
-
-            {protocolData.doctor && (
-              <View style={styles.detailRow}>
-                <Icon name="doctor" size={16} color="#cccccc" />
-                <Text style={styles.detailText}>
-                  {protocolData.doctor.name}
-                </Text>
-              </View>
-            )}
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(protocol.status) }]}>
+            <Text style={styles.statusText}>{getStatusText(protocol.status)}</Text>
           </View>
+        </View>
+
+        <View style={styles.protocolDetails}>
+          {protocolData.doctor && (
+            <View style={styles.detailRow}>
+                <Icon name="doctor" size={16} color="rgba(255, 255, 255, 0.9)" />
+                <Text style={[styles.detailText, { color: 'rgba(255, 255, 255, 0.9)' }]}>
+                {protocolData.doctor.name}
+              </Text>
+            </View>
+          )}
+        </View>
 
           {isActive && (
-            <TouchableOpacity 
-              style={styles.continueButton}
-              onPress={() => {
+          <TouchableOpacity 
+            style={styles.continueButton}
+            onPress={() => {
                 navigation.navigate('Protocol', { protocolId: protocol.id });
-              }}
-            >
+            }}
+          >
               <Text style={styles.continueButtonText}>Continue the protocol</Text>
               <Icon name="arrow-right" size={16} color="#cccccc" />
             </TouchableOpacity>
@@ -470,13 +505,13 @@ const HomeScreen = () => {
 
           {canStart && (
             <TouchableOpacity 
-              style={[styles.continueButton, { backgroundColor: '#61aed0', borderColor: '#61aed0' }]}
+              style={[styles.continueButton, { backgroundColor: '#1697F5', borderColor: '#1697F5' }]}
               onPress={() => handleStartProtocolPress(protocol)}
             >
               <Text style={[styles.continueButtonText, { color: '#ffffff' }]}>Start the protocol now</Text>
               <Icon name="play" size={16} color="#ffffff" />
-            </TouchableOpacity>
-          )}
+          </TouchableOpacity>
+        )}
         </View>
       </Animated.View>
     );
@@ -505,32 +540,12 @@ const HomeScreen = () => {
   );
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <StatusBar style="light" backgroundColor="#151515" />
-        <ActivityIndicator size="large" color="#0088FE" />
-        <Text style={styles.loadingText}>Loading protocols...</Text>
-      </View>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" backgroundColor="#151515" />
-      
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.titleContainer}>
-            {user?.name && (
-              <View style={styles.welcomeContainer}>
-                <Text style={styles.helloText}>Hello</Text>
-                <Text style={styles.nameText}>{user.name}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
-
+      <StatusBar style="light" />
       <ScrollView 
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -538,59 +553,61 @@ const HomeScreen = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#0088FE"
-            colors={['#0088FE']}
-            progressBackgroundColor="#151515"
+            tintColor="#FFFFFF"
+            colors={['#FFFFFF']}
+            progressBackgroundColor="#234e6c"
           />
         }
       >
-        {protocols.length === 0 ? (
-          <Animated.View style={[styles.emptyState, { opacity: fadeAnim }]}>
-            <Icon name="medical-bag" size={64} color="#cccccc" />
-            <Text style={styles.emptyTitle}>No Protocols Available</Text>
-            <Text style={styles.emptyDescription}>
-              You don't have any active treatment protocols yet or there was a problem loading your data.
-              {'\n\n'}
-              Contact us via WhatsApp for help or wait for new treatments to be released.
-            </Text>
-            
-            <View style={styles.actionButtons}>
-              <TouchableOpacity 
-                style={styles.whatsappButton}
-                onPress={openWhatsApp}
-              >
-                <Icon name="whatsapp" size={20} color="#FFFFFF" />
-                <Text style={styles.whatsappButtonText}>Chat on WhatsApp</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.refreshButton}
-                onPress={onRefresh}
-              >
-                <Icon name="refresh" size={20} color="#0088FE" />
-                <Text style={styles.refreshButtonText}>Refresh</Text>
-              </TouchableOpacity>
+        {/* Header Section */}
+      <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View style={styles.welcomeSection}>
+              <Text style={styles.welcomeText}>Welcome back,</Text>
+              <Text style={styles.userName}>{user?.name}</Text>
             </View>
-          </Animated.View>
-        ) : (
-          <View style={styles.protocolsList}>
-            {/* Active Protocols Section */}
-            {renderProtocolSection('Available Protocols', activeProtocols, 'No active protocols')}
-            
-            {/* Inactive Protocols Section */}
-            {renderProtocolSection('Inactive Protocols', inactiveProtocols, 'No inactive protocols')}
+            <View style={styles.logoContainer}>
+          <Image 
+            source={require('../../assets/logo.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
           </View>
-        )}
-      </ScrollView>
+        </View>
+        
 
-      <View style={styles.bottomLogoContainer}>
-        <Image 
-          source={require('../../assets/logo.png')} 
-          style={styles.bottomLogo}
-          resizeMode="contain"
-        />
       </View>
-      {renderStartProtocolModal()}
+      
+        {/* Main Content */}
+        <View style={styles.mainContent}>
+          {/* Original Protocols Section */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Your Protocols</Text>
+            <TouchableOpacity 
+              style={styles.seeAllButton}
+              onPress={() => navigation.navigate('Protocols')}
+            >
+              <Text style={styles.seeAllText}>See All</Text>
+              <Icon name="chevron-right" size={20} color="#1697F5" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Protocols List */}
+          {protocols.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Icon name="clipboard-text-outline" size={64} color="#1697F5" />
+              <Text style={styles.emptyStateTitle}>No Protocols Yet</Text>
+              <Text style={styles.emptyStateText}>
+                Your prescribed protocols will appear here
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.protocolsList}>
+              {protocols.map((protocol, index) => renderProtocolCard(protocol, index))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -598,58 +615,135 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#151515',
+    backgroundColor: '#16171b',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#151515',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#cccccc',
-  },
+
   header: {
+    padding: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    backgroundColor: '#16171b',
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 20,
-    backgroundColor: '#151515',
-    borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    marginBottom: 24,
   },
-  headerLeft: {
+  welcomeSection: {
+    flex: 1,
+  },
+
+  welcomeText: {
+    fontSize: 16,
+    color: '#94a3b8',
+    fontFamily: 'ManropeRegular',
+  },
+  userName: {
+    fontSize: 24,
+    color: '#f8fafc',
+    fontFamily: 'ManropeBold',
+  },
+  logoContainer: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logo: {
+    width: 32,
+    height: 32,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#26272c',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statValue: {
+    fontSize: 24,
+    color: '#1697F5',
+    fontFamily: 'ManropeBold',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontFamily: 'ManropeRegular',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  mainContent: {
+    backgroundColor: '#1d1e24',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 24,
+    paddingHorizontal: 20,
+    minHeight: 600,
+    paddingBottom: 120,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    color: '#f8fafc',
+    fontFamily: 'ManropeBold',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  seeAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
-  titleContainer: {
-    flexDirection: 'column',
-  },
-  welcomeText: {
+  seeAllText: {
     fontSize: 14,
-    color: '#cccccc',
-    marginTop: 4,
+    color: '#94a3b8',
+    fontFamily: 'ManropeMedium',
+    marginRight: 4,
   },
+
+
   scrollView: {
     flex: 1,
-    backgroundColor: '#151515',
+    paddingBottom: 120,
   },
   protocolsList: {
     paddingTop: 20,
   },
   protocolCard: {
-    backgroundColor: '#0a0a0a',
-    borderRadius: 12,
+    backgroundColor: '#26272c',
+    borderRadius: 16,
     marginHorizontal: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#202020',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
   },
   protocolHeader: {
     flexDirection: 'row',
@@ -662,28 +756,29 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   protocolTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontSize: 18,
+    color: '#f8fafc',
     marginBottom: 4,
+    fontFamily: 'ManropeBold',
   },
   protocolDescription: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
     lineHeight: 20,
+    fontFamily: 'ManropeRegular',
   },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
-    borderColor: '#252525',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '500',
-    color: '#ffffff',
+    color: '#f8fafc',
+    fontFamily: 'ManropeMedium',
   },
   protocolDetails: {
     marginBottom: 16,
@@ -695,23 +790,24 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
     marginLeft: 8,
+    fontFamily: 'ManropeRegular',
   },
   continueButton: {
-    backgroundColor: '#151515',
+    backgroundColor: '#26272c',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#252525',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   continueButtonText: {
-    color: '#cccccc',
+    color: '#f8fafc',
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'ManropeMedium',
     marginRight: 8,
   },
   emptyState: {
@@ -722,16 +818,17 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
     marginTop: 16,
     marginBottom: 8,
+    fontFamily: 'ManropeSemiBold',
   },
   emptyDescription: {
     fontSize: 16,
-    color: '#cccccc',
+    color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 24,
+    fontFamily: 'ManropeRegular',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -742,7 +839,7 @@ const styles = StyleSheet.create({
   whatsappButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#61aed0',
+    backgroundColor: '#1697F5',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -751,13 +848,13 @@ const styles = StyleSheet.create({
   whatsappButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '500',
+    fontFamily: 'ManropeMedium',
     marginLeft: 8,
   },
   refreshButton: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#26272c',
     borderWidth: 1,
-    borderColor: '#61aed0',
+    borderColor: '#1697F5',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -774,9 +871,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   refreshButtonText: {
-    color: '#61aed0',
+    color: '#1697F5',
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'ManropeSemiBold',
     marginLeft: 8,
   },
   protocolImage: {
@@ -791,20 +888,14 @@ const styles = StyleSheet.create({
   protocolSection: {
     marginBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 16,
-    marginHorizontal: 20,
-  },
+
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   profileButton: {
     padding: 8,
-    borderRadius: 8,
+    borderRadius: 20,
   },
   headerLogo: {
     width: 28,
@@ -821,18 +912,19 @@ const styles = StyleSheet.create({
   },
   helloText: {
     fontSize: 24,
-    color: '#cccccc',
+    color: '#7F8589',
     marginRight: 8,
+    fontFamily: 'ManropeRegular',
   },
   nameText: {
     fontSize: 24,
-    color: '#ffffff',
-    fontWeight: '600',
+    color: '#18222A',
+    fontFamily: 'ManropeSemiBold',
   },
   bottomLogoContainer: {
     alignItems: 'center',
     paddingVertical: 20,
-    backgroundColor: '#151515',
+    backgroundColor: '#16171b',
   },
   bottomLogo: {
     width: 120,
@@ -840,18 +932,26 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#151515',
+    backgroundColor: '#26272c',
     borderRadius: 12,
     width: '100%',
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: '#202020',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -859,12 +959,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#202020',
+    borderBottomColor: '#1d1e24',
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#f8fafc',
+    fontFamily: 'ManropeSemiBold',
   },
   closeButton: {
     padding: 4,
@@ -874,44 +974,106 @@ const styles = StyleSheet.create({
   },
   modalText: {
     fontSize: 16,
-    color: '#ffffff',
+    color: '#f8fafc',
     marginBottom: 12,
     textAlign: 'center',
+    fontFamily: 'ManropeRegular',
   },
   modalSubtext: {
     fontSize: 14,
-    color: '#cccccc',
+    color: '#94a3b8',
     textAlign: 'center',
+    fontFamily: 'ManropeRegular',
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#202020',
+    borderTopColor: '#1d1e24',
     gap: 12,
   },
   cancelButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 6,
-    backgroundColor: '#252525',
+    backgroundColor: '#1d1e24',
   },
   cancelButtonText: {
-    color: '#cccccc',
+    color: '#94a3b8',
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'ManropeMedium',
   },
   confirmButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 6,
-    backgroundColor: '#61aed0',
+    backgroundColor: '#1697F5',
   },
   confirmButtonText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'ManropeMedium',
+  },
+  protocolMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+    paddingBottom: 12,
+  },
+  protocolMetaText: {
+    color: '#FFFFFF',
+    marginLeft: 8,
+    fontSize: 14,
+    fontFamily: 'ManropeRegular',
+  },
+  dailySummary: {
+    marginBottom: 24,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#26272c',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  summaryTitle: {
+    fontSize: 14,
+    color: '#f8fafc',
+    fontFamily: 'ManropeSemiBold',
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    gap: 8,
+  },
+  summaryItemText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontFamily: 'ManropeRegular',
+    flex: 1,
+  },
+  emptyText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontFamily: 'ManropeRegular',
+    textAlign: 'center',
+    paddingVertical: 8,
   },
 });
 

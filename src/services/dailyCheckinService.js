@@ -8,7 +8,7 @@ class DailyCheckinService {
   async getCheckinData(protocolId, date = null) {
     try {
       const dateParam = date ? `&date=${date}` : '';
-      const url = `/api/mobile/daily-checkin?protocolId=${protocolId}${dateParam}`;
+      const url = `/api/v2/patients/checkin-questions?protocolId=${protocolId}${dateParam}`;
       
       logger.debug('Buscando dados do check-in', { protocolId, date });
       const response = await apiClient.get(url);
@@ -18,7 +18,12 @@ class DailyCheckinService {
         hasCheckinToday: response.hasCheckinToday 
       });
       
-      return response;
+      return {
+        questions: response.questions || [],
+        hasCheckinToday: response.hasCheckinToday || false,
+        existingResponses: response.existingResponses || {},
+        date: response.date
+      };
     } catch (error) {
       logger.error('Erro ao buscar dados do check-in:', error);
       throw error;
@@ -28,15 +33,29 @@ class DailyCheckinService {
   // Submeter respostas do check-in
   async submitCheckin(protocolId, responses) {
     try {
-      logger.debug('Submetendo check-in', { protocolId, responsesCount: responses.length });
-      
-      const response = await apiClient.post('/api/mobile/daily-checkin', {
-        protocolId,
-        responses
+      logger.debug('Submetendo check-in', { 
+        protocolId, 
+        responsesCount: responses.length 
       });
       
-      logger.info('Check-in submetido com sucesso');
-      return response;
+      const response = await apiClient.post('/api/v2/patients/checkin-responses', {
+        protocolId,
+        responses: responses.map(r => ({
+          questionId: r.questionId,
+          answer: r.answer
+        }))
+      });
+      
+      logger.info('Check-in submetido com sucesso', {
+        isUpdate: response.isUpdate,
+        message: response.message
+      });
+
+      return {
+        success: response.success,
+        message: response.message,
+        responses: response.responses || []
+      };
     } catch (error) {
       logger.error('Erro ao submeter check-in:', error);
       throw error;
